@@ -1,0 +1,7 @@
+# dsh-agnes-studio bundle patch: registers the Agnes Creative Studio
+# plugin into the web profile roster. The host half registers API proxy
+# routes; the client half mounts a shell.overlay floating panel that
+# never touches the conversation DOM.
+- insert:
+    - id: agnes-studio
+      name: 'dsh-agnes-studio'
