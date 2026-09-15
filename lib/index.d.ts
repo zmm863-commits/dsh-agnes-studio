@@ -5,7 +5,7 @@ declare const name = "agnes-studio";
 /** Required services. */
 declare const inject: string[];
 /**
- * Mount the API proxy route, drama pipeline routes, and agent announcement.
+ * Mount the multi-vendor API proxy routes and agent announcement.
  */
 declare function apply(ctx: Context): void;
 //#endregion
