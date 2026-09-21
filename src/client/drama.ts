@@ -155,7 +155,7 @@ export async function confirmDrama(
   payload: {
     field: 'story' | 'script' | 'assets' | 'video';
     content?: string;
-    action?: 'approve' | 'start';
+    action?: 'approve' | 'start' | 'complete';
     shot_index?: number;
   },
 ): Promise<void> {
@@ -164,6 +164,29 @@ export async function confirmDrama(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+}
+
+/** 依次生成所有未完成的镜头视频 */
+export async function generateAllShotVideos(dramaId: string): Promise<{ queued: number }> {
+  const resp = await fetch(`${API_BASE}/drama/${dramaId}/videos`, { method: 'POST' })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok || data?.error) throw new Error(data?.error || `启动失败（HTTP ${resp.status}）`)
+  return data
+}
+
+/** 合成成片：把已完成的镜头按顺序拼接，可选烧录字幕 */
+export async function mergeDrama(
+  dramaId: string,
+  opts: { subtitles?: boolean; reencode?: boolean } = {},
+): Promise<{ url: string; duration: number; shots: number; mode: string }> {
+  const resp = await fetch(`${API_BASE}/drama/${dramaId}/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok || data?.error) throw new Error(data?.error || `合成失败（HTTP ${resp.status}）`)
+  return data
 }
 
 /** 重新生成某步 */

@@ -71,7 +71,7 @@ export function PromptExpertPanel({ textModels }: Props) {
           style: {
             padding: '10px', borderRadius: '8px', cursor: 'pointer',
             border: t.key === selected ? '1px solid #6c5ce7' : '1px solid rgba(255,255,255,0.06)',
-            background: t.key === selected ? 'rgba(108,92,231,0.15)' : 'var(--dsw-alias-bg-layer-2, #252538)',
+            background: t.key === selected ? 'rgba(108,92,231,0.15)' : 'var(--ag-surface-2, rgba(255,255,255,0.55))',
           },
           onClick: () => { setSelected(t.key); setParams({}); setResult(''); setError('') },
         },
@@ -84,9 +84,9 @@ export function PromptExpertPanel({ textModels }: Props) {
     // Form
     currentType ? createElement('div', null,
       createElement('div', { style: { marginBottom: '8px' } },
-        createElement('label', { style: { fontSize: '12px', color: '#9a9ab0', display: 'block', marginBottom: '4px' } }, '文本模型'),
+        createElement('label', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', display: 'block', marginBottom: '4px' } }, '文本模型'),
         createElement('select', {
-          style: { width: '100%', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: '#e8e8ef', fontSize: '12px' },
+          style: { width: '100%', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: 'var(--ag-text, #0c1a33)', fontSize: '12px' },
           value: model,
           onChange: (e: Event) => setModel((e.target as HTMLSelectElement).value),
         },
@@ -95,9 +95,9 @@ export function PromptExpertPanel({ textModels }: Props) {
       ),
       ...currentType.fields.map((f: any) =>
         createElement('div', { key: f.key, style: { marginBottom: '8px' } },
-          createElement('label', { style: { fontSize: '12px', color: '#9a9ab0', display: 'block', marginBottom: '4px' } }, f.label),
+          createElement('label', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', display: 'block', marginBottom: '4px' } }, f.label),
           createElement('select', {
-            style: { width: '100%', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: '#e8e8ef', fontSize: '12px' },
+            style: { width: '100%', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: 'var(--ag-text, #0c1a33)', fontSize: '12px' },
             value: params[f.key] || f.default,
             onChange: (e: Event) => setParams({ ...params, [f.key]: (e.target as HTMLSelectElement).value }),
           },
@@ -106,9 +106,9 @@ export function PromptExpertPanel({ textModels }: Props) {
         )
       ),
       createElement('div', { style: { marginBottom: '8px' } },
-        createElement('label', { style: { fontSize: '12px', color: '#9a9ab0', display: 'block', marginBottom: '4px' } }, '你的想法'),
+        createElement('label', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', display: 'block', marginBottom: '4px' } }, '你的想法'),
         createElement('textarea', {
-          style: { width: '100%', minHeight: '60px', padding: '8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: '#e8e8ef', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' },
+          style: { width: '100%', minHeight: '60px', padding: '8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: 'var(--ag-text, #0c1a33)', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' },
           value: idea,
           onChange: (e: Event) => setIdea((e.target as HTMLTextAreaElement).value),
           placeholder: currentType.placeholder,
@@ -128,6 +128,6 @@ export function PromptExpertPanel({ textModels }: Props) {
         result,
         createElement('button', { className: 'agnes-btn agnes-btn-sm agnes-btn-secondary', style: { marginTop: '8px' }, onClick: () => handleCopy(result) }, '📋 复制'),
       ) : null,
-    ) : createElement('div', { style: { padding: '40px', textAlign: 'center', color: '#6c6c80' } }, '👆 选择一个专家开始'),
+    ) : createElement('div', { style: { padding: '40px', textAlign: 'center', color: 'var(--ag-text-3, #6e80a3)' } }, '👆 选择一个专家开始'),
   )
 }

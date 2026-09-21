@@ -322,6 +322,16 @@ if (entry !== null) {
     source.includes('platform.agnes-ai.cn') && source.includes('agnes-api-key'))
   check('no duplicated React backdrop element',
     !/["']data-dsh-agnes-backdrop["']\s*:/.test(source))
+
+  // The sidebar entry renders in the DSH sidebar, OUTSIDE the panel root, so
+  // our panel-scoped --ag-* tokens are undefined there and would fall back to a
+  // dark value on a dark surface (invisible text). It must use host tokens.
+  const cssNoComments = source.replace(/\/\*[\s\S]*?\*\//g, '')
+  const entryBlocks = cssNoComments.match(/\.agnes-entry[^{]*\{[^}]*\}/g) ?? []
+  check('sidebar entry CSS is present', entryBlocks.length >= 3, String(entryBlocks.length))
+  check('sidebar entry uses host theme tokens, not panel-scoped --ag-*',
+    entryBlocks.length > 0 && !entryBlocks.some(b => /--ag-/.test(b)),
+    entryBlocks.filter(b => /--ag-/.test(b)).join(' ').slice(0, 160))
 }
 
 console.log('')

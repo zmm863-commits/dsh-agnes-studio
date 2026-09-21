@@ -44,6 +44,8 @@ import {
   resumeDrama,
   confirmDrama,
   regenerateDrama,
+  generateAllShotVideos,
+  mergeDrama,
   pollDramaStatus,
   saveDramaTask,
   listDramaTasks,
@@ -197,7 +199,7 @@ function renderStatusMessage(task: DramaTask) {
           'span',
           {
             style: {
-              color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+              color: 'var(--ag-text-3, #6e80a3)',
               fontSize: '12px',
             },
           },
@@ -293,7 +295,7 @@ function renderReadOnlySection(opts: {
         style: {
           padding: '12px',
           borderRadius: '8px',
-          background: 'var(--dsw-alias-bg-layer-2, #252538)',
+          background: 'var(--ag-surface-2, rgba(255,255,255,0.55))',
           fontSize: '13px',
           lineHeight: '1.6',
           whiteSpace: 'pre-wrap',
@@ -316,7 +318,7 @@ function renderAssets(task: DramaTask) {
       createElement('div', { className: 'agnes-section-title' }, '🎨 素材'),
       createElement(
         'div',
-        { style: { color: 'var(--dsw-alias-label-secondary, #6c6c80)', fontSize: '13px', padding: '12px 0' } },
+        { style: { color: 'var(--ag-text-3, #6e80a3)', fontSize: '13px', padding: '12px 0' } },
         '素材生成中…',
       ),
     )
@@ -423,7 +425,7 @@ function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number) => voi
       createElement('div', { className: 'agnes-section-title' }, '🎬 分镜'),
       createElement(
         'div',
-        { style: { color: 'var(--dsw-alias-label-secondary, #6c6c80)', fontSize: '13px', padding: '12px 0' } },
+        { style: { color: 'var(--ag-text-3, #6e80a3)', fontSize: '13px', padding: '12px 0' } },
         '分镜生成中…',
       ),
     )
@@ -477,7 +479,7 @@ function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number) => voi
           {
             style: {
               fontSize: '12px',
-              color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+              color: 'var(--ag-text-3, #6e80a3)',
               marginTop: '4px',
               lineHeight: '1.5',
             },
@@ -492,7 +494,7 @@ function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number) => voi
               {
                 style: {
                   fontSize: '11px',
-                  color: 'var(--dsw-alias-label-secondary, #9a9ab0)',
+                  color: 'var(--ag-text-2, #2a3c5e)',
                   marginTop: '2px',
                 },
               },
@@ -508,7 +510,7 @@ function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number) => voi
               {
                 style: {
                   fontSize: '11px',
-                  color: 'var(--dsw-alias-label-secondary, #9a9ab0)',
+                  color: 'var(--ag-text-2, #2a3c5e)',
                   marginTop: '2px',
                 },
               },
@@ -578,6 +580,131 @@ function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number) => voi
   )
 }
 
+/**
+ * 成片区：一键生成全部镜头 → 合成成片（可烧字幕）→ 预览/下载。
+ * 只在已经有分镜、且不在早期步骤时出现。
+ */
+function renderFinalCut(
+  task: DramaTask,
+  opts: {
+    merging: boolean
+    finalCut: { url: string; duration: number; shots: number } | null
+    notice: string
+    ffmpegMissing?: boolean
+    ffmpegHint?: string
+    onGenerateAll: () => void
+    onMerge: (withSubtitles: boolean) => void
+  },
+) {
+  const results = task.video_results || []
+  if (results.length === 0) return null
+
+  const done = results.filter((v) => v.status === 'completed').length
+  const failed = results.filter((v) => v.status === 'failed').length
+  const generating = results.some((v) => v.status === 'generating' || v.status === 'pending')
+  const canMerge = done > 0 && !opts.merging
+  const notStarted = done === 0 && !generating
+
+  return createElement(
+    'div',
+    { className: 'agnes-section' },
+    // 高亮卡片：让"下一步做什么"一眼可见
+    createElement(
+      'div',
+      { className: `agdp-next${notStarted ? ' primary' : ''}` },
+      createElement(
+        'div',
+        { className: 'agdp-next-head' },
+        createElement('span', { className: 'agdp-next-icon' }, notStarted ? '👉' : (generating ? '⏳' : '✅')),
+        createElement(
+          'div',
+          null,
+          createElement('div', { className: 'agdp-next-title' },
+            notStarted ? '下一步：生成镜头视频' : (generating ? '镜头生成中…' : '镜头已就绪，可以合成成片')),
+          createElement('div', { className: 'agdp-next-sub' },
+            `镜头进度：${done}/${results.length} 已完成` +
+              (failed > 0 ? ` · ${failed} 个失败` : '') +
+              (generating ? ' · 生成中…' : '')),
+        ),
+      ),
+
+      opts.ffmpegMissing
+        ? createElement('div', { className: 'agdp-warn' },
+            '⚠️ 未检测到 ffmpeg，无法合成成片。' + (opts.ffmpegHint || '请先安装 ffmpeg。'))
+        : null,
+
+      createElement(
+        'div',
+        { className: 'agdp-next-actions' },
+        createElement(
+          'button',
+          {
+            className: 'agnes-btn agnes-btn-primary',
+            disabled: generating,
+            onClick: opts.onGenerateAll,
+          },
+          generating ? '⏳ 正在生成镜头…' : '🎬 一键生成全部镜头',
+        ),
+        createElement(
+          'button',
+          {
+            className: 'agnes-btn agnes-btn-secondary',
+            disabled: !canMerge,
+            onClick: () => opts.onMerge(false),
+          },
+          opts.merging ? '⏳ 合成中…' : '🎞 合成成片',
+        ),
+        createElement(
+          'button',
+          {
+            className: 'agnes-btn agnes-btn-ghost',
+            disabled: !canMerge,
+            onClick: () => opts.onMerge(true),
+          },
+          opts.merging ? '⏳ 合成中…' : '💬 合成并烧字幕',
+        ),
+      ),
+    ),
+    opts.notice
+      ? createElement(
+          'div',
+          { style: { marginTop: '8px', fontSize: '12px', color: '#2ecc71' } },
+          opts.notice,
+        )
+      : null,
+    opts.finalCut
+      ? createElement(
+          'div',
+          { style: { marginTop: '12px' } },
+          createElement('video', {
+            src: opts.finalCut.url,
+            controls: true,
+            style: { width: '100%', borderRadius: '10px', background: '#000' },
+          }),
+          createElement(
+            'div',
+            { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' } },
+            createElement(
+              'a',
+              {
+                className: 'agnes-btn agnes-btn-sm',
+                href: opts.finalCut.url,
+                download: `短剧成片-${task.drama_id}.mp4`,
+                style: { textDecoration: 'none' },
+              },
+              '⬇️ 下载成片',
+            ),
+            createElement(
+              'span',
+              { style: { fontSize: '11px', color: 'var(--ag-text-3, #8a8a9e)' } },
+              `${opts.finalCut.shots} 镜 · ${Number(opts.finalCut.duration || 0).toFixed(1)} 秒`,
+            ),
+          ),
+        )
+      : null,
+  )
+}
+
 /** Completed status view with summary. */
 function renderCompletedView(task: DramaTask) {
   const shots: DramaShot[] = task.shots || task.storyboard?.shots || []
@@ -609,7 +736,7 @@ function renderCompletedView(task: DramaTask) {
         {
           style: {
             fontSize: '13px',
-            color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+            color: 'var(--ag-text-3, #6e80a3)',
           },
         },
         shots.length + ' 个镜头 · ' + completedVideos.length + ' 个视频',
@@ -633,7 +760,7 @@ function renderCompletedView(task: DramaTask) {
                         fontSize: '12px',
                         fontWeight: 500,
                         marginBottom: '4px',
-                        color: 'var(--dsw-alias-label-secondary, #9a9ab0)',
+                        color: 'var(--ag-text-2, #2a3c5e)',
                       },
                     },
                     '镜头 ' + vr.shot_index,
@@ -668,9 +795,25 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
   const [error, setError] = useState('')
   const [editContent, setEditContent] = useState('')
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [merging, setMerging] = useState(false)
+  const [ffStatus, setFfStatus] = useState<{ available: boolean; hint: string } | null>(null)
+  const [notice, setNotice] = useState('')
+  const [finalCut, setFinalCut] = useState<{ url: string; duration: number; shots: number } | null>(null)
 
   // Polling ref so we can clean up on unmount
   const stopPollRef = useRef<(() => void) | null>(null)
+
+  // 合成需要 ffmpeg：提前探测，缺了就在成片区预警而不是等到点按钮才报错
+  useEffect(() => {
+    fetch('/agnes-studio/api/ffmpeg')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        // null = route missing / probe failed → unknown, do NOT warn.
+        if (!d || typeof d.available !== 'boolean') { setFfStatus(null); return }
+        setFfStatus({ available: d.available, hint: String(d.hint ?? '') })
+      })
+      .catch(() => setFfStatus(null))
+  }, [])
 
   // ── Model option lists ────────────────────────────────────────────────
   const imgOpts = buildModelOptions(imageModels, IMAGE_MODELS_DEFAULT)
@@ -886,6 +1029,38 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
     [currentTask],
   )
 
+  /** 一键生成所有未完成镜头（后台依次跑，靠轮询刷新进度） */
+  const handleGenerateAllVideos = useCallback(async () => {
+    if (!currentTask) return
+    try {
+      setError('')
+      const r = await generateAllShotVideos(currentTask.drama_id)
+      setNotice(`已排队 ${r.queued} 个镜头，正在依次生成（每个约 2-4 分钟）…`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '启动失败')
+    }
+  }, [currentTask])
+
+  /** 把已完成的镜头合成为成片 */
+  const handleMerge = useCallback(
+    async (withSubtitles: boolean) => {
+      if (!currentTask || merging) return
+      setMerging(true)
+      setError('')
+      setNotice('')
+      try {
+        const r = await mergeDrama(currentTask.drama_id, { subtitles: withSubtitles })
+        setFinalCut({ url: r.url, duration: r.duration, shots: r.shots })
+        setNotice(`成片已生成：${r.shots} 个镜头，${Number(r.duration || 0).toFixed(1)} 秒`)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '合成失败')
+      } finally {
+        setMerging(false)
+      }
+    },
+    [currentTask, merging],
+  )
+
   // ── New task panel ────────────────────────────────────────────────────
   const renderNewTaskForm = () =>
     createElement(
@@ -893,8 +1068,8 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
       {
         style: {
           padding: '12px 16px',
-          borderBottom: '1px solid var(--dsw-alias-border-l1, rgba(255,255,255,0.06))',
-          background: 'var(--dsw-alias-bg-layer-2, #252538)',
+          borderBottom: '1px solid var(--ag-line, rgba(32,74,150,0.15))',
+          background: 'var(--ag-surface-2, rgba(255,255,255,0.55))',
         },
       },
       createElement(
@@ -920,7 +1095,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           createElement('label', {
             style: {
               fontSize: '11px',
-              color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+              color: 'var(--ag-text-3, #6e80a3)',
               marginBottom: '2px',
               display: 'block',
             },
@@ -943,7 +1118,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           createElement('label', {
             style: {
               fontSize: '11px',
-              color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+              color: 'var(--ag-text-3, #6e80a3)',
               marginBottom: '2px',
               display: 'block',
             },
@@ -966,7 +1141,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           createElement('label', {
             style: {
               fontSize: '11px',
-              color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+              color: 'var(--ag-text-3, #6e80a3)',
               marginBottom: '2px',
               display: 'block',
             },
@@ -993,7 +1168,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           createElement('label', {
             style: {
               fontSize: '11px',
-              color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+              color: 'var(--ag-text-3, #6e80a3)',
               marginBottom: '2px',
               display: 'block',
             },
@@ -1102,7 +1277,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
                   textAlign: 'center',
                   padding: '20px 12px',
                   fontSize: '12px',
-                  color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+                  color: 'var(--ag-text-3, #6e80a3)',
                 },
               },
               '暂无任务',
@@ -1143,7 +1318,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
                     {
                       style: {
                         fontSize: '10px',
-                        color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+                        color: 'var(--ag-text-3, #6e80a3)',
                         marginTop: '2px',
                       },
                     },
@@ -1156,7 +1331,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
                     style: {
                       border: 'none',
                       background: 'transparent',
-                      color: 'var(--dsw-alias-label-secondary, #6c6c80)',
+                      color: 'var(--ag-text-3, #6e80a3)',
                       cursor: 'pointer',
                       fontSize: '12px',
                       padding: '2px 4px',
@@ -1233,6 +1408,14 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
         stepIdx >= 3 && task.status !== 'paused_story' && task.status !== 'paused_script'
           ? renderAssets(task)
           : null,
+        // Final cut (成片合成)
+        renderFinalCut(task, {
+          merging, finalCut, notice,
+          ffmpegMissing: ffStatus ? !ffStatus.available : false,
+          ffmpegHint: ffStatus?.hint,
+          onGenerateAll: handleGenerateAllVideos,
+          onMerge: handleMerge,
+        }),
       ),
       // Action bar
       createElement(
@@ -1249,7 +1432,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           : null,
         createElement(
           'div',
-          { style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)' } },
+          { style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' } },
           '文本: ' + task.text_model + ' · 图像: ' + task.image_model + ' · 视频: ' + task.video_model,
         ),
       ),
@@ -1323,7 +1506,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
             createElement('div', { className: 'agnes-section-title' }, '💡 使用提示'),
             createElement(
               'div',
-              { style: { fontSize: '12px', lineHeight: '1.6', color: 'var(--dsw-alias-label-secondary, #9a9ab0)' } },
+              { style: { fontSize: '12px', lineHeight: '1.6', color: 'var(--ag-text-2, #2a3c5e)' } },
               '• 描述越详细，生成效果越好',
               createElement('br'),
               '• 可在每步暂停时编辑内容',
@@ -1402,10 +1585,10 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
                 style: {
                   padding: '8px',
                   borderRadius: '6px',
-                  background: 'var(--dsw-alias-bg-layer-2, #252538)',
+                  background: 'var(--ag-surface-2, rgba(255,255,255,0.55))',
                   fontSize: '12px',
                   lineHeight: '1.5',
-                  color: 'var(--dsw-alias-label-secondary, #9a9ab0)',
+                  color: 'var(--ag-text-2, #2a3c5e)',
                   maxHeight: '120px',
                   overflowY: 'auto',
                   whiteSpace: 'pre-wrap',

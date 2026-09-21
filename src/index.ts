@@ -12,8 +12,12 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-credentials'
-import { handleDramaRoute, rehydrateDramas } from './drama-engine.js'
+import { handleDramaRoute, rehydrateDramas, resolveDramaMedia, type DramaHost } from './drama-engine.js'
+import { handleAnchorRoute, rehydrateAnchors, resolveAnchorMedia, type AnchorHost } from './anchor-engine.js'
+import { COVER_STYLES, analyzeNovelFile, buildCoverPrompt } from './cover-engine.js'
 import { handlePromptExpertRoute, generatePromptExpert, EXPERT_TYPES } from './prompt-expert-engine.js'
+import { ffmpegStatus } from './ffmpeg.js'
+import { statSync, createReadStream } from 'node:fs'
 
 // ═══════════════════════════════════════════════════════════════════════
 // Constants
@@ -76,6 +80,33 @@ function getVendorBaseUrl(vendor: string, customUrl?: string): string {
   return VENDOR_BASE_URLS[vendor] || VENDOR_BASE_URLS.agnes
 }
 
+/**
+ * Join a vendor base URL with a client endpoint without duplicating or losing
+ * the API version segment.
+ *
+ * The base URLs above already carry a version (`.../v1`, `.../api/v3`), while
+ * clients also send fully-qualified endpoints (`/v1/images/generations`,
+ * `/v2/video_generation`). Naive concatenation produced `.../v1/v1/...`, which
+ * Agnes answered with 404 — every image/video call from the panel failed.
+ *
+ * Rules:
+ *   base .../v1 + /v1/images/...   → .../v1/images/...   (version deduped)
+ *   base .../v1 + /images/...      → .../v1/images/...
+ *   base .../v1 + /v2/video_gen    → .../v2/video_gen    (endpoint version wins)
+ *   base .../v1 + /agnesapi?...    → .../v1/agnesapi?...
+ */
+export function buildUpstreamUrl(baseUrl: string, endpoint: string): string {
+  const base = String(baseUrl || '').replace(/\/+$/, '')
+  const ep = '/' + String(endpoint || '').replace(/^\/+/, '')
+  const baseVersion = base.match(/\/(v\d+[a-z0-9]*)$/i)
+  const endpointVersion = ep.match(/^\/(v\d+[a-z0-9]*)(\/|$)/i)
+  if (baseVersion && endpointVersion) {
+    // The endpoint states its own version: drop the base's version segment.
+    return base.slice(0, base.length - baseVersion[0].length) + ep
+  }
+  return base + ep
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // API Key resolution
 // ═══════════════════════════════════════════════════════════════════════
@@ -101,16 +132,10 @@ async function resolveApiKeyForVendor(ctx: Context, vendor: string): Promise<str
   const envKey = `${vendor.toUpperCase()}_API_KEY`
   if (process.env[envKey]) return process.env[envKey]!
 
-  // 3. Agnes universal key fallback (other vendors may share)
-  if (vendor !== 'agnes') {
-    try {
-      const resolved = await ctx.credentials.resolve('agnes-api-key')
-      if (resolved && typeof resolved === 'string' && resolved.length > 0) {
-        return resolved
-      }
-    } catch { /* ignore */ }
-    if (process.env.AGNES_API_KEY) return process.env.AGNES_API_KEY
-  }
+  // NOTE: there is deliberately NO cross-vendor fallback to the Agnes key.
+  // Each vendor has its own endpoint, so sending the Agnes key to DeepSeek/Qwen
+  // just produces an opaque 401 far from the real cause. Fail here instead, with
+  // the exact key name the user must configure.
 
   throw new Error(
     `${vendor} API Key 未配置：请在本机 .env 写入 ${envKey}=... 或在 DSH 凭据(credentials)中新增 ${credentialKey}。` +
@@ -121,41 +146,32 @@ async function resolveApiKeyForVendor(ctx: Context, vendor: string): Promise<str
 /**
  * Get key configuration status for all vendors (never exposes actual keys).
  */
-async function getKeyStatus(ctx: Context): Promise<Record<string, { configured: boolean; source: string | null }>> {
+async function getKeyStatus(ctx: Context): Promise<Record<string, { configured: boolean; source: string | null; envKey: string; credentialKey: string }>> {
   const vendors = ['agnes', 'deepseek', 'qwen', 'doubao', 'minimax', 'ollama']
-  const status: Record<string, { configured: boolean; source: string | null }> = {}
+  const status: Record<string, { configured: boolean; source: string | null; envKey: string; credentialKey: string }> = {}
 
   for (const vendor of vendors) {
     if (vendor === 'ollama') {
-      status[vendor] = { configured: true, source: 'built-in' }
+      status[vendor] = { configured: true, source: 'built-in', envKey: '', credentialKey: '' }
       continue
     }
     // Check vendor-specific credential
     try {
       const resolved = await ctx.credentials.resolve(`${vendor}-api-key`)
       if (resolved && typeof resolved === 'string' && resolved.length > 0) {
-        status[vendor] = { configured: true, source: 'credentials' }
+        status[vendor] = { configured: true, source: 'credentials', envKey: `${vendor.toUpperCase()}_API_KEY`, credentialKey: `${vendor}-api-key` }
         continue
       }
     } catch { /* ignore */ }
     // Check vendor-specific env
     if (process.env[`${vendor.toUpperCase()}_API_KEY`]) {
-      status[vendor] = { configured: true, source: 'env' }
+      status[vendor] = { configured: true, source: 'env', envKey: `${vendor.toUpperCase()}_API_KEY`, credentialKey: `${vendor}-api-key` }
       continue
     }
-    // Check Agnes universal fallback
-    try {
-      const resolved = await ctx.credentials.resolve('agnes-api-key')
-      if (resolved && typeof resolved === 'string' && resolved.length > 0) {
-        status[vendor] = { configured: true, source: 'agnes-fallback' }
-        continue
-      }
-    } catch { /* ignore */ }
-    if (process.env.AGNES_API_KEY) {
-      status[vendor] = { configured: true, source: 'agnes-env-fallback' }
-      continue
-    }
-    status[vendor] = { configured: false, source: null }
+    // A vendor is configured ONLY by its own credential/env. Having an Agnes
+    // key does not make DeepSeek usable — report it as unconfigured so the
+    // panel tells the truth.
+    status[vendor] = { configured: false, source: null, envKey: `${vendor.toUpperCase()}_API_KEY`, credentialKey: `${vendor}-api-key` }
   }
   return status
 }
@@ -225,24 +241,55 @@ function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
-/** Generic fetch with timeout. */
+/**
+ * Generic fetch with timeout and bounded retries.
+ *
+ * Agnes occasionally answers 5xx with "请求上游失败，请稍后重试" — a transient
+ * upstream hiccup that succeeds on retry. Only clearly transient failures are
+ * retried, and only when the caller says the call is safe to repeat:
+ *   - network/abort errors (the request never produced a result)
+ *   - 5xx / 429 for idempotent endpoints (e.g. image generation)
+ * Video submission is deliberately NOT retried by default: a duplicate submit
+ * would create a second task and burn quota.
+ */
 async function vendorFetch(
   url: string,
-  opts: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number } = {},
+  opts: {
+    method?: string
+    headers?: Record<string, string>
+    body?: string
+    timeoutMs?: number
+    retries?: number
+  } = {},
 ): Promise<unknown> {
-  const { timeoutMs = 120_000, ...fetchOpts } = opts
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const resp = await fetch(url, { ...fetchOpts, signal: controller.signal })
-    if (!resp.ok) {
+  const { timeoutMs = 120_000, retries = 0, ...fetchOpts } = opts
+  const maxAttempts = Math.max(1, retries + 1)
+  let lastError: Error = new Error('请求失败')
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const resp = await fetch(url, { ...fetchOpts, signal: controller.signal })
+      if (resp.ok) return await resp.json()
+
       const text = await resp.text().catch(() => '')
-      throw new Error(`API ${resp.status}: ${text.slice(0, 500)}`)
+      const err = new Error(`API ${resp.status}: ${text.slice(0, 500)}`)
+      const transient = resp.status >= 500 || resp.status === 429
+      lastError = err
+      if (!transient || attempt === maxAttempts - 1) throw err
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e))
+      lastError = err
+      // Re-throw immediately when this is the final attempt.
+      if (attempt === maxAttempts - 1) throw err
+    } finally {
+      clearTimeout(timer)
     }
-    return await resp.json()
-  } finally {
-    clearTimeout(timer)
+    // Backoff: 1.2s, 2.4s, … keeps transient upstream hiccups recoverable.
+    await new Promise(r => setTimeout(r, 1200 * Math.pow(2, attempt)))
   }
+  throw lastError
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -259,6 +306,60 @@ function textResponse(res: ServerResponse, status: number, text: string): void {
   res.end(text)
 }
 
+/**
+ * Stream a local media file with HTTP Range support.
+ * Ranges matter: without them the browser cannot seek in the generated video.
+ */
+function serveMediaFile(req: IncomingMessage, res: ServerResponse, file: string): void {
+  let stat: ReturnType<typeof statSync>
+  try {
+    stat = statSync(file)
+  } catch {
+    textResponse(res, 404, 'media not found')
+    return
+  }
+  if (!stat.isFile()) {
+    textResponse(res, 404, 'media not found')
+    return
+  }
+  const ext = file.slice(file.lastIndexOf('.')).toLowerCase()
+  const type = ext === '.mp4' ? 'video/mp4'
+    : ext === '.webm' ? 'video/webm'
+    : ext === '.wav' ? 'audio/wav'
+    : ext === '.mp3' ? 'audio/mpeg'
+    : ext === '.png' ? 'image/png'
+    : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+    : 'application/octet-stream'
+
+  const range = req.headers?.range
+  if (typeof range === 'string') {
+    const m = /bytes=(\d*)-(\d*)/.exec(range)
+    if (m) {
+      const start = m[1] === '' ? Math.max(0, stat.size - Number(m[2] || 0)) : Number(m[1])
+      const end = m[2] === '' || m[1] === '' ? stat.size - 1 : Math.min(Number(m[2]), stat.size - 1)
+      if (Number.isFinite(start) && start <= end && start < stat.size) {
+        res.writeHead(206, {
+          'content-type': type,
+          'content-length': String(end - start + 1),
+          'content-range': `bytes ${start}-${end}/${stat.size}`,
+          'accept-ranges': 'bytes',
+          'cache-control': 'no-cache',
+        })
+        createReadStream(file, { start, end }).pipe(res)
+        return
+      }
+    }
+  }
+
+  res.writeHead(200, {
+    'content-type': type,
+    'content-length': String(stat.size),
+    'accept-ranges': 'bytes',
+    'cache-control': 'no-cache',
+  })
+  createReadStream(file).pipe(res)
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Plugin entry
 // ═══════════════════════════════════════════════════════════════════════
@@ -269,6 +370,7 @@ function textResponse(res: ServerResponse, status: number, text: string): void {
 export function apply(ctx: Context): void {
   // ── Restore drama tasks from disk ───────────────────────────────
   rehydrateDramas()
+  rehydrateAnchors()
 
   // ── API endpoints ────────────────────────────────────────────────
   ctx.effect(
@@ -373,11 +475,17 @@ export function apply(ctx: Context): void {
             const apiKey = await resolveApiKeyForVendor(ctx, vendor)
             const baseUrl = getVendorBaseUrl(vendor, customUrl)
 
-            // Normalize endpoint: ensure leading slash
-            const ep = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-            const url = `${baseUrl}${ep}`
+            // Join without duplicating the version segment (see buildUpstreamUrl)
+            const url = buildUpstreamUrl(baseUrl, endpoint)
 
             const upstreamMethod = parsed.method === 'GET' ? 'GET' : 'POST'
+
+            // Agnes intermittently answers 5xx ("请求上游失败，请稍后重试").
+            // Image generation is safe to repeat, so it gets retries; a video
+            // submit is not (a duplicate would create a second task/quota hit).
+            const isImageGen = /\/images\/generations/.test(endpoint)
+            const isVideoSubmit = /\/videos\/?$/.test(endpoint) && upstreamMethod === 'POST'
+            const retries = isVideoSubmit ? 0 : (isImageGen ? 3 : (upstreamMethod === 'GET' ? 2 : 0))
 
             const result = await vendorFetch(url, {
               method: upstreamMethod,
@@ -387,6 +495,7 @@ export function apply(ctx: Context): void {
               },
               body: upstreamMethod === 'GET' ? undefined : JSON.stringify(params || {}),
               timeoutMs: timeoutMs || 120_000,
+              retries,
             })
 
             jsonResponse(res, 200, result)
@@ -401,11 +510,35 @@ export function apply(ctx: Context): void {
         if (path.startsWith('/agnes-studio/api/drama')) {
           try {
             const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
-            const dramaResolveKey = async (vendor: string): Promise<string> => {
-              if (vendor === 'ollama') return 'ollama'
-              return resolveApiKeyForVendor(ctx, vendor)
+            const dramaHost: DramaHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+              resolveCredential: async (name, envName) => {
+                try {
+                  const v = await ctx.credentials.resolve(name)
+                  if (v && typeof v === 'string' && v.length > 0) return v
+                } catch { /* fall through */ }
+                if (process.env[envName]) return process.env[envName]!
+                throw new Error(`未配置 ${envName}（凭据 ${name}）。`)
+              },
             }
-            const result = handleDramaRoute(method, path, body, dramaResolveKey)
+            const result = await handleDramaRoute(method, path, body, dramaHost)
             if (result) {
               jsonResponse(res, result.status, result.data)
               return
@@ -416,13 +549,120 @@ export function apply(ctx: Context): void {
           }
         }
 
+        // ── Talking-avatar (数字人口播) API ─────────────────────────────
+        if (path.startsWith('/agnes-studio/api/anchor')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const anchorHost: AnchorHost = {
+              resolveTtsKey: async () => {
+                try {
+                  const v = await ctx.credentials.resolve('mimo-api-key')
+                  if (v && typeof v === 'string' && v.length > 0) return v
+                } catch { /* fall through */ }
+                if (process.env.MIMO_API_KEY) return process.env.MIMO_API_KEY
+                throw new Error('未配置 TTS 配音 Key：请在本机 .env 写入 MIMO_API_KEY=... 或在 DSH 凭据中新增 mimo-api-key。')
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleAnchorRoute(method, path, body, anchorHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── Media files (generated videos / final cuts) ────────────────
+        //   /agnes-studio/api/media/anchor/:anchorId/:filename
+        //   /agnes-studio/api/media/:dramaId/:filename
+        if (path.startsWith('/agnes-studio/api/media/')) {
+          const rest = path.slice('/agnes-studio/api/media/'.length)
+          const parts = rest.split('/').map(decodeURIComponent)
+
+          let file: string | null = null
+          if (parts[0] === 'anchor' && parts.length >= 3) {
+            file = resolveAnchorMedia(parts[1], parts.slice(2).join('/'))
+          } else if (parts.length >= 2) {
+            file = resolveDramaMedia(parts[0], parts.slice(1).join('/'))
+          }
+
+          if (!file) {
+            textResponse(res, 404, 'media not found')
+            return
+          }
+          serveMediaFile(req, res, file)
+          return
+        }
+
+        // ── Novel cover helpers (解析 / 提示词) ────────────────────────
+        if (path.startsWith('/agnes-studio/api/cover')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const sub = path.slice('/agnes-studio/api/cover'.length).replace(/^\//, '')
+
+            if (method === 'GET' && sub === 'styles') {
+              jsonResponse(res, 200, { styles: COVER_STYLES.map(s => ({ key: s.key, name: s.name })) })
+              return
+            }
+            if (method === 'POST' && sub === 'parse') {
+              const result = analyzeNovelFile(String(body?.filename ?? 'novel.txt'), String(body?.content ?? ''))
+              if (!result.ok) { jsonResponse(res, 400, { error: result.error }); return }
+              jsonResponse(res, 200, { meta: result.meta })
+              return
+            }
+            if (method === 'POST' && sub === 'build') {
+              const meta = {
+                title: String(body?.title ?? '').trim(),
+                author: String(body?.author ?? '').trim(),
+                summary: String(body?.summary ?? '').trim(),
+                charCount: 0,
+                source: '',
+              }
+              if (!meta.title) { jsonResponse(res, 400, { error: '缺少书名' }); return }
+              jsonResponse(res, 200, {
+                prompt: buildCoverPrompt(meta, String(body?.style ?? ''), String(body?.extra ?? '')),
+              })
+              return
+            }
+            jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        // ── ffmpeg capability probe (drives the UI's setup hints) ──────
+        if (path === '/agnes-studio/api/ffmpeg') {
+          try {
+            jsonResponse(res, 200, await ffmpegStatus())
+          } catch (e) {
+            jsonResponse(res, 200, { available: false, hint: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
         // ── Prompt Expert API ──────────────────────────────────────────
         if (path.startsWith('/agnes-studio/api/prompt-expert')) {
           try {
             const expertResult = await handlePromptExpertRoute(
               method, path,
               method === 'POST' ? JSON.parse(await readBody(req)) : {},
-              (v: string) => resolveApiKey(ctx),
+              // `resolveApiKey` never existed — the reference threw inside the
+              // handler and every prompt-expert call died as a bogus 401.
+              (v: string) => (v === 'ollama' ? Promise.resolve('ollama') : resolveApiKeyForVendor(ctx, v)),
               getVendorFromModel,
             )
             if (expertResult) jsonResponse(res, expertResult.status, expertResult.data)

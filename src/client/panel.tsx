@@ -61,6 +61,9 @@ import {
 import { parseScript, isSupportedScript } from './import.ts'
 import { DramaPanel } from './drama-panel.tsx'
 import { PromptExpertPanel } from './prompt-expert-panel.tsx'
+import { AnchorPanel } from './anchor-panel.tsx'
+import { CanvasPanel } from './canvas-panel.tsx'
+import { CoverPanel } from './cover-panel.tsx'
 
 /**
  * Mount a component into a container with React 18's createRoot.
@@ -89,7 +92,47 @@ interface PanelProps {
 }
 
 /** Tab type. */
-type TabType = 'image' | 'video' | 'storyboard' | 'expert' | 'settings'
+
+/** Left-rail modules: id, icon, and the label shown under the icon. */
+const MODULES: Array<{ id: string; icon: string; name: string }> = [
+  { id: 'image', icon: '🎨', name: '生图' },
+  { id: 'video', icon: '🎬', name: '生视频' },
+  { id: 'storyboard', icon: '📖', name: '短剧' },
+  { id: 'anchor', icon: '🎙', name: '口播' },
+  { id: 'canvas', icon: '🕸', name: '画布' },
+  { id: 'cover', icon: '📕', name: '封面' },
+  { id: 'expert', icon: '✨', name: '提示词' },
+]
+
+
+/** Theme choice: 'auto' follows the DSH shell, or an explicit override. */
+type ThemeChoice = 'auto' | 'light' | 'dark'
+const THEME_KEY = 'agnes-theme'
+
+/** Read the shell's own background luminance to decide light vs dark. */
+function detectShellTheme(): 'light' | 'dark' {
+  try {
+    const cs = getComputedStyle(document.body)
+    const raw = cs.getPropertyValue('--dsw-alias-bg-layer-1').trim() || cs.backgroundColor
+    const m = /rgba?\(([^)]+)\)/.exec(raw)
+    if (!m) return 'dark'
+    const [r, g, b] = m[1].split(',').map(Number)
+    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    return lum > 0.5 ? 'light' : 'dark'
+  } catch { return 'dark' }
+}
+
+function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
+  if (choice === 'light' || choice === 'dark') return choice
+  try {
+    const saved = localStorage?.getItem(THEME_KEY)
+    if (saved === 'light' || saved === 'dark') return saved
+  } catch { /* ignore */ }
+  // Default to the bright "tech" skin; users can switch to dark in the header.
+  return 'light'
+}
+
+type TabType = 'image' | 'video' | 'storyboard' | 'anchor' | 'canvas' | 'cover' | 'expert' | 'settings'
 
 /** Image aspect ratios. */
 const IMAGE_RATIOS = ['1:1', '3:4', '4:3', '16:9', '9:16', '2:3', '3:2', '21:9']
@@ -122,6 +165,8 @@ export function StudioPanel({ onClose }: PanelProps) {
 
   // ── Core state ─────────────────────────────────────────────────────────
   const [tab, setTab] = useState<TabType>('image')
+  // Light/dark are BOTH supported; this only picks the starting one.
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => resolveTheme('auto'))
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('')
@@ -661,7 +706,7 @@ export function StudioPanel({ onClose }: PanelProps) {
         free
           ? createElement('span', { className: 'agnes-model-tag agnes-model-tag-free' }, '🎉 免费')
           : createElement('span', { className: 'agnes-model-tag' }, '💎 付费'),
-        createElement('span', { style: { marginLeft: '6px', fontSize: '12px', color: 'var(--dsw-alias-label-secondary, #6c6c80)' } }, currentModelName),
+        createElement('span', { style: { marginLeft: '6px', fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)' } }, currentModelName),
       ),
     )
   }
@@ -729,7 +774,7 @@ export function StudioPanel({ onClose }: PanelProps) {
       ) : null,
       createElement('div', { className: 'agnes-input-row', style: { marginTop: '8px' } },
         createElement('div', null,
-          createElement('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', marginBottom: '4px' } }, '分辨率'),
+          createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', marginBottom: '4px' } }, '分辨率'),
           createElement('select', {
             className: 'agnes-select',
             value: videoResolution,
@@ -741,7 +786,7 @@ export function StudioPanel({ onClose }: PanelProps) {
           ),
         ),
         createElement('div', null,
-          createElement('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', marginBottom: '4px' } }, '宽高比'),
+          createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', marginBottom: '4px' } }, '宽高比'),
           createElement('select', {
             className: 'agnes-select',
             value: videoAspectRatio,
@@ -754,7 +799,7 @@ export function StudioPanel({ onClose }: PanelProps) {
         ),
       ),
       createElement('div', { style: { marginTop: '8px' } },
-        createElement('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', marginBottom: '4px' } }, '时长 (秒)'),
+        createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', marginBottom: '4px' } }, '时长 (秒)'),
         createElement('select', {
           className: 'agnes-select',
           value: videoDuration,
@@ -782,7 +827,7 @@ export function StudioPanel({ onClose }: PanelProps) {
       ),
       Object.keys(vendorStatus).length === 0
         ? createElement('div', { className: 'agnes-setting-row' },
-            createElement('span', { className: 'agnes-setting-label', style: { color: 'var(--dsw-alias-label-secondary, #6c6c80)' } }, '暂无厂商信息，点击下方按钮检测'),
+            createElement('span', { className: 'agnes-setting-label', style: { color: 'var(--ag-text-3, #6e80a3)' } }, '暂无厂商信息，点击下方按钮检测'),
           )
         : null,
       createElement('button', {
@@ -795,7 +840,7 @@ export function StudioPanel({ onClose }: PanelProps) {
 
     createElement('div', { className: 'agnes-setting-group' },
       createElement('div', { className: 'agnes-setting-group-title' }, '📖 配置指南'),
-      createElement('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', lineHeight: '1.6', marginBottom: '8px' } },
+      createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6', marginBottom: '8px' } },
         '如需使用付费模型，请在对应厂商平台获取 API Key 并配置到 DSH。'
       ),
       createElement('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
@@ -854,14 +899,14 @@ export function StudioPanel({ onClose }: PanelProps) {
               )
             )
           )
-        : createElement('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', padding: '8px 0' } },
+        : createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', padding: '8px 0' } },
             '暂无自定义模型。添加后可在模型选择器中使用。',
           ),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
       createElement('div', { className: 'agnes-setting-group-title' }, 'ℹ️ 关于'),
-      createElement('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', lineHeight: '1.6' } },
+      createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
         createElement('div', null, `版本: ${PRODUCT_NAME}`),
         createElement('div', null, '🎨 支持多家厂商图片/视频生成'),
         createElement('div', null, '📐 每个模型有独立的尺寸白名单'),
@@ -975,7 +1020,10 @@ export function StudioPanel({ onClose }: PanelProps) {
 
   return createElement('div', {
     ref: panelRef,
+    className: `agnes-root agnes-mod-${tab}`,
     'data-dsh-agnes-studio': '',
+    'data-ag-tab': tab,
+    'data-ag-theme': theme,
   },
     // ── Title bar ──
     createElement('div', {
@@ -984,6 +1032,18 @@ export function StudioPanel({ onClose }: PanelProps) {
     },
       createElement('span', { className: 'agnes-titlebar-icon' }, '🎬'),
       createElement('span', { className: 'agnes-titlebar-text' }, PRODUCT_NAME),
+      createElement('span', { className: 'agnes-titlebar-module' },
+        (MODULES.find(m => m.id === tab)?.name) ?? (tab === 'settings' ? '设置' : '')),
+      createElement('div', { className: 'agnes-titlebar-spacer' }),
+      createElement('button', {
+        className: 'agnes-theme-toggle',
+        onClick: () => {
+          const next = theme === 'dark' ? 'light' : 'dark'
+          setTheme(next)
+          try { localStorage?.setItem(THEME_KEY, next) } catch { /* ignore */ }
+        },
+        title: theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题',
+      }, theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'),
       createElement('span', { className: 'agnes-badge agnes-badge-free' }, '🎉 生图/视频免费'),
       createElement('button', {
         className: 'agnes-titlebar-btn',
@@ -1051,26 +1111,50 @@ export function StudioPanel({ onClose }: PanelProps) {
       ),
     ) : null,
 
-    // ── Tabs bar (always visible) ──
-    createElement('div', { style: { padding: '8px 16px 0' } },
-      createElement('div', { className: 'agnes-tabs' },
-        ['image', 'video', 'storyboard', 'expert', 'settings'].map(t =>
+    // ── Workspace: vertical nav rail + content ──
+    createElement('div', { className: 'agnes-shell' },
+      createElement('nav', { className: 'agnes-rail' },
+        ...MODULES.map(m =>
           createElement('button', {
-            key: t,
-            className: `agnes-tab ${tab === t ? 'active' : ''}`,
-            onClick: () => setTab(t as TabType),
-          }, t === 'image' ? '🎨 生图' : t === 'video' ? '🎬 生视频' : t === 'storyboard' ? '📖 短剧' : t === 'expert' ? '✨ 提示词' : '⚙ 设置'),
+            key: m.id,
+            className: `agnes-rail-item${tab === m.id ? ' active' : ''}`,
+            'data-tab': m.id,
+            onClick: () => setTab(m.id as TabType),
+            title: m.name,
+          },
+            createElement('span', { className: 'agnes-rail-icon' }, m.icon),
+            createElement('span', { className: 'agnes-rail-label' }, m.name),
+          ),
+        ),
+        createElement('div', { className: 'agnes-rail-spacer' }),
+        createElement('button', {
+          className: `agnes-rail-item${tab === 'settings' ? ' active' : ''}`,
+          'data-tab': 'settings',
+          onClick: () => setTab('settings' as TabType),
+          title: '设置',
+        },
+          createElement('span', { className: 'agnes-rail-icon' }, '⚙'),
+          createElement('span', { className: 'agnes-rail-label' }, '设置'),
         ),
       ),
-    ),
+      createElement('div', { className: 'agnes-main' },
 
     // ── Content area ──
-    (tab === 'expert' || tab === 'settings')
+    tab === 'canvas'
+      // The canvas owns the full area (pan/zoom needs room).
+      ? createElement('div', { style: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } },
+          createElement(CanvasPanel, { textModels: TEXT_MODEL_OPTIONS, imageModels, videoModels }),
+        )
+      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover')
       // Full-width panels
-      ? createElement('div', { style: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } },
+      ? createElement('div', { style: { flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' } },
           tab === 'expert'
             ? createElement(PromptExpertPanel, { textModels: TEXT_MODEL_OPTIONS })
-            : renderSettings()
+            : tab === 'anchor'
+              ? createElement(AnchorPanel)
+              : tab === 'cover'
+                ? createElement(CoverPanel, { imageModels })
+                : renderSettings()
         )
       // Three-column layout (image / video / storyboard)
       : createElement('div', { className: 'agnes-body' },
@@ -1146,9 +1230,12 @@ export function StudioPanel({ onClose }: PanelProps) {
         ),
       ),
 
-      // ═══ Right panel ═══
-      createElement('div', { className: 'agnes-right' },
-        createElement('div', { className: 'agnes-right-scroll' },
+      // ═══ Right panel — ONLY for image/video ═══
+      // The storyboard workbench renders its own right column, so mounting this
+      // one too left an empty 280px sidebar beside it.
+      (tab === 'image' || tab === 'video')
+        ? createElement('div', { className: 'agnes-right' },
+            createElement('div', { className: 'agnes-right-scroll' },
 
           (tab === 'image' || tab === 'video') ? createElement('div', { className: 'agnes-section' },
             createElement('div', { className: 'agnes-section-title' }, '📝 提示词'),
@@ -1238,9 +1325,9 @@ export function StudioPanel({ onClose }: PanelProps) {
               }, '+'),
             ),
             refImages.length > 0 ? createElement('div', {
-              style: { marginTop: '8px', fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)' },
+              style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' },
             }, `${refImages.length} 张参考图`) : createElement('div', {
-              style: { marginTop: '8px', fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)' },
+              style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' },
             }, tab === 'video' && videoMode === 'keyframe' ? '纯文生视频模式（或上传首尾帧）' : '无参考图（纯文生模式）'),
           ) : null,
 
@@ -1248,7 +1335,7 @@ export function StudioPanel({ onClose }: PanelProps) {
 
           (tab === 'image' || tab === 'video') ? createElement('div', { className: 'agnes-section' },
             createElement('div', { className: 'agnes-section-title' }, 'ℹ️ 模型信息'),
-            createElement('div', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, #6c6c80)', lineHeight: '1.6' } },
+            createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
               createElement('div', null, `🎨 当前图片模型: ${getModelDisplayName(selectedImageModel, imageModels)}`),
               createElement('div', null, `🎬 当前视频模型: ${getModelDisplayName(selectedVideoModel, videoModels)}`),
               createElement('div', null, `📐 图片尺寸: ${imageSize} · 比例: ${imageRatio}`),
@@ -1260,11 +1347,16 @@ export function StudioPanel({ onClose }: PanelProps) {
               ),
             ),
           ) : null,
-        ),
+            ),
+          )
+        : null,
+    ),
+
       ),
     ),
 
     // ── Status bar ──
+
     createElement('div', { className: 'agnes-statusbar' },
       createElement('div', { className: 'agnes-status-dot' }),
       createElement('span', null, keyStatus === 'missing' ? 'API 未连接（缺 Key）' : 'API 已连接'),
@@ -1275,7 +1367,7 @@ export function StudioPanel({ onClose }: PanelProps) {
       project ? createElement('span', null, `📊 ${project.scenes.length} 个场景`) : null,
       result ? createElement('span', null, `✅ 已生成 ${result.type === 'image' ? '图片' : '视频'}`) : null,
       (tab === 'image' || tab === 'video') ? createElement('span', {
-        style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--dsw-alias-label-secondary, #6c6c80)' },
+        style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' },
       }, tab === 'image'
         ? `🎨 ${getModelDisplayName(selectedImageModel, imageModels).split('(')[0].trim()}`
         : `🎬 ${getModelDisplayName(selectedVideoModel, videoModels).split('(')[0].trim()}`) : null,

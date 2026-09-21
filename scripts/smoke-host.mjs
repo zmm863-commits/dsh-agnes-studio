@@ -36,6 +36,30 @@ check('injects credentials', (mod.inject ?? []).includes('credentials'))
 check('exports apply', typeof mod.apply === 'function')
 if (typeof mod.apply !== 'function') process.exit(1)
 
+// ── upstream URL joining (the /v1/v1 404 regression) ──────────────────
+if (typeof mod.buildUpstreamUrl === 'function') {
+  const cases = [
+    ['https://api.agnes-ai.cn/v1', '/v1/images/generations', 'https://api.agnes-ai.cn/v1/images/generations'],
+    ['https://api.agnes-ai.cn/v1', '/images/generations', 'https://api.agnes-ai.cn/v1/images/generations'],
+    ['https://api.agnes-ai.cn/v1', '/v1/videos', 'https://api.agnes-ai.cn/v1/videos'],
+    ['https://api.minimaxi.com/v1', '/v2/video_generation', 'https://api.minimaxi.com/v2/video_generation'],
+    ['https://api.agnes-ai.cn/v1', '/agnesapi?video_id=x', 'https://api.agnes-ai.cn/v1/agnesapi?video_id=x'],
+    ['https://ark.cn-beijing.volces.com/api/v3', '/v1/chat/completions', 'https://ark.cn-beijing.volces.com/api/v1/chat/completions'],
+    ['https://api.agnes-ai.cn/v1/', 'images/generations', 'https://api.agnes-ai.cn/v1/images/generations'],
+  ]
+  let allOk = true
+  for (const [base, ep, want] of cases) {
+    const got = mod.buildUpstreamUrl(base, ep)
+    if (got !== want) {
+      allOk = false
+      check(`buildUpstreamUrl("${ep}")`, false, `got ${got}, want ${want}`)
+    }
+  }
+  check('buildUpstreamUrl never duplicates the version segment', allOk)
+} else {
+  check('exports buildUpstreamUrl', false, 'missing export')
+}
+
 // ── run apply() against a recorded context ─────────────────────────────
 const routes = []
 const sections = []
@@ -90,7 +114,7 @@ if (typeof route?.handler === 'function') {
     writeHead(code, extra) { this.status = code; Object.assign(this.headers, extra ?? {}) },
     end(body) { this.body = body },
   }
-  const req = { method: 'GET', on() {}, headers: {} }
+  const req = { method: 'GET', url: '/agnes-studio/api/proxy', on() {}, headers: {} }
   try {
     await route.handler(req, res)
     check('GET on the proxy is rejected with 405', res.status === 405, `got ${res.status}`)
@@ -142,6 +166,65 @@ if (typeof route?.handler === 'function') {
   } finally {
     if (savedEnv !== undefined) process.env.AGNES_API_KEY = savedEnv
   }
+
+  // ── new sub-routes must dispatch (not fall through to 404) ───────────
+  const call = async (method, url, payload) => {
+    const r = statusRes()
+    // readBody() registers 'data' then 'end'; feed them synchronously.
+    const req = {
+      method,
+      url,
+      headers: {},
+      on(event, cb) {
+        // readBody() collects Buffers then Buffer.concat()s them.
+        if (event === 'data' && payload !== undefined) cb(Buffer.from(JSON.stringify(payload), 'utf8'))
+        if (event === 'end') cb()
+        return this
+      },
+    }
+    try {
+      await route.handler(req, r)
+    } catch (e) {
+      return { status: -1, body: String(e) }
+    }
+    return r
+  }
+
+  const ff = await call('GET', '/agnes-studio/api/ffmpeg')
+  check('GET /api/ffmpeg dispatches', ff.status === 200, String(ff.status))
+  check('ffmpeg payload carries an availability flag',
+    typeof JSON.parse(ff.body ?? '{}').available === 'boolean', String(ff.body).slice(0, 120))
+
+  const mediaMissing = await call('GET', '/agnes-studio/api/media/nope/missing.mp4')
+  check('unknown media is 404', mediaMissing.status === 404, String(mediaMissing.status))
+
+  const mergeMissing = await call('POST', '/agnes-studio/api/drama/nope/merge', {})
+  check('merge on unknown drama is 404', mergeMissing.status === 404, String(mergeMissing.status))
+
+  const anchorMissing = await call('GET', '/agnes-studio/api/anchor/nope/status')
+  check('anchor status on unknown job is 404', anchorMissing.status === 404, String(anchorMissing.status))
+
+  const anchorBad = await call('POST', '/agnes-studio/api/anchor/start', {})
+  check('anchor start without text is 400', anchorBad.status === 400, String(anchorBad.status))
+
+  // ── novel cover helpers ──────────────────────────────────────────────
+  const styles = await call('GET', '/agnes-studio/api/cover/styles')
+  check('GET /cover/styles dispatches', styles.status === 200, String(styles.status))
+  check('cover styles are non-empty',
+    (JSON.parse(styles.body ?? '{}').styles ?? []).length >= 4, String(styles.body).slice(0, 120))
+
+  const coverBuild = await call('POST', '/agnes-studio/api/cover/build', { title: '测试书', summary: '简介', style: 'guofeng' })
+  check('cover build returns a prompt',
+    coverBuild.status === 200 && String(JSON.parse(coverBuild.body ?? '{}').prompt).includes('测试书'),
+    String(coverBuild.body).slice(0, 120))
+
+  const coverNoTitle = await call('POST', '/agnes-studio/api/cover/build', {})
+  check('cover build without a title is 400', coverNoTitle.status === 400, String(coverNoTitle.status))
+
+  const coverDoc = await call('POST', '/agnes-studio/api/cover/parse', { filename: 'a.doc', content: 'AAAA' })
+  check('legacy .doc is rejected with guidance',
+    coverDoc.status === 400 && /docx|txt/i.test(JSON.parse(coverDoc.body ?? '{}').error ?? ''),
+    String(coverDoc.body).slice(0, 120))
 }
 
 console.log('')

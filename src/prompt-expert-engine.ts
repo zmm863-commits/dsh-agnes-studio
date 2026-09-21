@@ -158,9 +158,17 @@ export async function handlePromptExpertRoute(
       return { status: 401, data: { error: 'API Key 未配置' } }
     }
 
-    // Call text model (async, non-blocking for the route handler)
-    // The actual execution happens in the pipeline, not here
-    return { status: 202, data: { accepted: true, model: selectedModel } }
+    // Actually run the model and return the text. The client reads
+    // `data.prompt`; returning a bare 202 made it display "生成中..." forever.
+    try {
+      const prompt = await generatePromptExpert(
+        expertKey, idea, (params ?? {}) as Record<string, string>, apiKey, selectedModel,
+      )
+      if (!prompt) return { status: 502, data: { error: '模型没有返回内容' } }
+      return { status: 200, data: { prompt, model: selectedModel } }
+    } catch (e) {
+      return { status: 502, data: { error: e instanceof Error ? e.message : String(e) } }
+    }
   }
 
   return null
