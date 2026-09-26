@@ -1,0 +1,7 @@
+# 构建产物（可由 npm run bundle 重建）
+lib/
+# 开发依赖
+node_modules/
+# 杂项
+*.log
+.DS_Store

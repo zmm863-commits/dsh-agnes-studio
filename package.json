@@ -1,0 +1,68 @@
+{
+  "name": "dsh-agnes-studio",
+  "version": "0.5.0",
+  "description": "🎬 泡泡猫的影视工具 — 生图/生视频/短剧/口播/画布/封面 + 全量并入的 Oh Story（短剧、网文、视频解说、小说改游戏）。全局浮层，不堵对话框。",
+  "type": "module",
+  "license": "MIT",
+  "author": "zmm863-commits",
+  "main": "lib/host-entry.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/host-entry.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "vendor",
+    "cordis.patch.yml",
+    "README.md",
+    "NOTICE.md"
+  ],
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "agnes",
+    "ai-image",
+    "ai-video",
+    "storyboard",
+    "short-drama",
+    "oh-story",
+    "video-recap",
+    "novel-to-game",
+    "创意工作站"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-tool"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6",
+    "tsdown": "^0.22.14",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "build": "tsdown && node build.mjs && node scripts/smoke-host.mjs && node scripts/smoke-client.mjs",
+    "bundle": "tsdown && node build.mjs",
+    "test": "node scripts/smoke-host.mjs && node scripts/smoke-client.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
