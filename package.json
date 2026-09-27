@@ -1,21 +1,23 @@
 {
   "name": "dsh-agnes-studio",
-  "version": "0.4.0",
-  "description": "🎬 泡泡猫的影视工具 — 充分利用 Agnes AI 免费生图/视频大模型，支持文生图、图生图、多图合成、文生视频、图生视频、剧本导入、故事板编排。全局浮层，不堵对话框。",
+  "version": "0.6.0",
+  "description": "🎬 泡泡猫的影视工具 — 生图/生视频/短剧/口播/画布/封面 + 全量并入的 Oh Story（短剧、网文、视频解说、小说改游戏）。全局浮层，不堵对话框。",
   "type": "module",
   "license": "MIT",
   "author": "zmm863-commits",
-  "main": "lib/index.js",
+  "main": "lib/host-entry.js",
   "types": "lib/index.d.ts",
   "exports": {
-    ".": "./lib/index.js",
+    ".": "./lib/host-entry.js",
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
   "files": [
     "lib",
+    "vendor",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "NOTICE.md"
   ],
   "keywords": [
     "dsh-plugin",
@@ -24,6 +26,10 @@
     "ai-image",
     "ai-video",
     "storyboard",
+    "short-drama",
+    "oh-story",
+    "video-recap",
+    "novel-to-game",
     "创意工作站"
   ],
   "dsh": {
@@ -32,7 +38,11 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime"
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-tool"
       ],
       "platform": "web"
     }

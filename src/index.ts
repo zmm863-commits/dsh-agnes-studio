@@ -16,8 +16,12 @@ import { handleDramaRoute, rehydrateDramas, resolveDramaMedia, type DramaHost } 
 import { handleAnchorRoute, rehydrateAnchors, resolveAnchorMedia, type AnchorHost } from './anchor-engine.js'
 import { COVER_STYLES, analyzeNovelFile, buildCoverPrompt } from './cover-engine.js'
 import { handlePromptExpertRoute, generatePromptExpert, EXPERT_TYPES } from './prompt-expert-engine.js'
+import {
+  listDshWorkspaces, detectCreativeProjects, listEntries, readText, writeText, createProject,
+} from './ohstory-fs.js'
 import { ffmpegStatus } from './ffmpeg.js'
 import { statSync, createReadStream } from 'node:fs'
+import { VENDOR_BASE_URLS, getVendorFromModel } from './vendors.js'
 
 // ═══════════════════════════════════════════════════════════════════════
 // Constants
@@ -29,6 +33,9 @@ export const name = 'agnes-studio'
 /** Required services. */
 export const inject = ['webServer', 'systemPrompt', 'credentials']
 
+/** Platform registration URL (Agnes) —— 提示词与客户端常量都以它为准。 */
+const AGNES_PLATFORM_URL = 'https://platform.agnes-ai.cn'
+
 /** Model-facing announcement. */
 const AGNES_STUDIO_GUIDANCE =
   '本机已安装 dsh-agnes-studio 插件（泡泡猫的影视工具）：侧边栏「🎬 泡泡猫的影视工具」入口打开影视工具面板（内部即 Agnes 创意工作站）。' +
@@ -36,43 +43,25 @@ const AGNES_STUDIO_GUIDANCE =
   '多厂商支持：面板现已支持 Agnes / DeepSeek / Qwen / 豆包(Doubao) / MiniMax / Ollama 六大厂商的文本、图像和视频模型，' +
   '代理端点自动按模型名路由到对应厂商 API。' +
   '限制：面板为全局浮层，不影响对话框；API Key 由宿主进程读取，浏览器不接触。' +
-  '首次使用需要对应厂商的 API Key：Agnes 在 https://platform.agnes-ai.cn 注册；' +
+  `首次使用需要对应厂商的 API Key：Agnes 在 ${AGNES_PLATFORM_URL} 注册；` +
   '其他厂商各自的 Key 写入 .env（如 DEEPSEEK_API_KEY=sk-...）或 DSH 凭据（如 deepseek-api-key）。' +
   'Ollama 无需 Key，需本地运行 11434 端口。' +
-  '用户提到「泡泡猫的影视工具 / Agnes 创意站 / 创意工作站 / 生图 / 生视频 / agnes studio」时即指本插件，可引导其从侧边栏入口打开。'
+  '本插件同时附带 Oh Story 的创作技能与工具（原 @oh-story/dsh 不再是独立插件行），共 37 个技能——' +
+  '短剧 11 个（short-drama 及其 develop/write/assets/image-prompts/storyboard/video-prompts/produce/edit/review/novel-analyze）、' +
+  '网文 13 个（story 及其 long/short 拆文与写作、封面、去 AI 味、导入、审查、扫榜）、' +
+  '视频解说 6 个（video-understanding/script/cut/voiceover/assemble/recap）、' +
+  '小说改游戏 7 个（novel-to-game 及其 analyze/concept/world-design/art-direction/build/qa），' +
+  '以及 oh_story_role、oh_story_production、oh_story_bundled_reference 三个工具。' +
+  '注意：Oh Story 的图形工作台页签已从面板撤下（功能不完善），上述技能仍可正常使用；' +
+  '短剧项目的创作真相是项目目录里 剧集/EPxxx 的五份 Markdown，直接编辑文件即可。' +
+  '用户提到「泡泡猫的影视工具 / Agnes 创意站 / 创意工作站 / 生图 / 生视频 / agnes studio / 短剧插件 / short 插件 / oh-story / 短剧 / 漫剧 / 视频解说 / 小说改游戏」时即指本插件，可引导其从侧边栏入口打开；' +
+  '短剧项目的创作真相仍是项目目录里 剧集/EPxxx 的五份 creator-first Markdown（剧本/视觉设定/分镜/图片提示词/视频提示词），由上述技能维护。'
 
 const SECTION_ORDER = 310
 
 // ═══════════════════════════════════════════════════════════════════════
 // Vendor routing
 // ═══════════════════════════════════════════════════════════════════════
-
-/** Vendor Base URL mapping. */
-const VENDOR_BASE_URLS: Record<string, string> = {
-  agnes: 'https://api.agnes-ai.cn/v1',
-  deepseek: 'https://api.deepseek.com/v1',
-  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  doubao: 'https://ark.cn-beijing.volces.com/api/v3',
-  minimax: 'https://api.minimaxi.com/v1',
-  ollama: 'http://localhost:11434/v1',
-}
-
-/** Platform registration URL (Agnes). */
-const AGNES_PLATFORM_URL = 'https://platform.agnes-ai.cn'
-
-/**
- * Infer vendor from model name.
- * e.g. "deepseek-v4-flash" → "deepseek", "ollama:llama3" → "ollama"
- */
-function getVendorFromModel(model: string): string {
-  if (!model) return 'agnes'
-  const m = model.toLowerCase()
-  if (m.startsWith('ollama:')) return 'ollama'
-  for (const prefix of Object.keys(VENDOR_BASE_URLS)) {
-    if (prefix !== 'agnes' && m.startsWith(prefix)) return prefix
-  }
-  return 'agnes'
-}
 
 /** Get vendor base URL, with optional custom override. */
 function getVendorBaseUrl(vendor: string, customUrl?: string): string {
@@ -650,6 +639,55 @@ export function apply(ctx: Context): void {
             jsonResponse(res, 200, await ffmpegStatus())
           } catch (e) {
             jsonResponse(res, 200, { available: false, hint: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        // ── 创作台（Oh Story 图形化）文件层 API ─────────────────────────
+        // 不走 /oh-story/*（那套要 DSH sessionId，我们的槽位能否拿到未验证），
+        // 改为：工作区清单读 DSH 注册表 + 其余操作显式传 root。
+        if (path.startsWith('/agnes-studio/api/ohstory')) {
+          try {
+            const sub = path.slice('/agnes-studio/api/ohstory'.length).replace(/^\//, '')
+            const q = new URL(req.url ?? '/', 'http://dsh.invalid')
+            const root = q.searchParams.get('root') ?? ''
+
+            if (method === 'GET' && sub === 'workspaces') {
+              jsonResponse(res, 200, { workspaces: listDshWorkspaces(process.env.DSH_HOME) })
+              return
+            }
+            if (method === 'GET' && sub === 'projects') {
+              if (root === '') { jsonResponse(res, 400, { error: '缺少 root' }); return }
+              jsonResponse(res, 200, { projects: detectCreativeProjects(root) })
+              return
+            }
+            if (method === 'GET' && sub === 'list') {
+              if (root === '') { jsonResponse(res, 400, { error: '缺少 root' }); return }
+              jsonResponse(res, 200, { entries: listEntries(root, q.searchParams.get('rel') ?? '') })
+              return
+            }
+            if (method === 'GET' && sub === 'file') {
+              if (root === '') { jsonResponse(res, 400, { error: '缺少 root' }); return }
+              const rel = q.searchParams.get('rel') ?? ''
+              jsonResponse(res, 200, { rel, ...readText(root, rel) })
+              return
+            }
+            if (method === 'POST' && sub === 'file') {
+              const body = JSON.parse(await readBody(req))
+              const bytes = writeText(String(body?.root ?? ''), String(body?.rel ?? ''), String(body?.content ?? ''))
+              jsonResponse(res, 200, { ok: true, bytes })
+              return
+            }
+            if (method === 'POST' && sub === 'project') {
+              const body = JSON.parse(await readBody(req))
+              const kind = body?.kind === 'short' ? 'short' : 'long'
+              const dir = createProject(String(body?.root ?? ''), kind, String(body?.name ?? ''))
+              jsonResponse(res, 200, { ok: true, dir })
+              return
+            }
+            jsonResponse(res, 404, { error: '未知的创作台接口: ' + sub })
+          } catch (e) {
+            jsonResponse(res, 400, { error: e instanceof Error ? e.message : '创作台接口失败' })
           }
           return
         }

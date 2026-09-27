@@ -3,6 +3,8 @@
  * 用户用中文说想法 → 文本模型生成专业提示词（中英文对照）
  */
 
+import { VENDOR_BASE_URLS as VENDOR_URLS, getVendorFromModel as getVendor } from './vendors.js'
+
 // ─── 专家类型定义 ──────────────────────────────────────────────────────────
 
 export interface ExpertField {
@@ -176,18 +178,6 @@ export async function handlePromptExpertRoute(
 
 // ─── 文本模型调用 ──────────────────────────────────────────────────────────
 
-const VENDOR_URLS: Record<string, string> = {
-  agnes: 'https://api.agnes-ai.cn/v1', deepseek: 'https://api.deepseek.com/v1',
-  qwen: 'https://dashscope.aliuncs.com/compatible-mode/v1', doubao: 'https://ark.cn-beijing.volces.com/api/v3',
-  minimax: 'https://api.minimaxi.com/v1', ollama: 'http://localhost:11434/v1',
-}
-
-function getVendor(model: string): string {
-  if (!model) return 'agnes'; const m = model.toLowerCase()
-  if (m.startsWith('ollama:')) return 'ollama'
-  for (const p of Object.keys(VENDOR_URLS)) { if (p !== 'agnes' && m.startsWith(p)) return p }
-  return 'agnes'
-}
 
 async function callTextModelLocal(sysPrompt: string, userPrompt: string, apiKey: string, model: string, maxTokens = 2048): Promise<string> {
   const baseUrl = VENDOR_URLS[getVendor(model)] || VENDOR_URLS.agnes

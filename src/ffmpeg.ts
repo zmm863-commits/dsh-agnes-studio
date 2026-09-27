@@ -201,8 +201,10 @@ export function findCjkFont(): string {
   for (const f of CJK_FONT_CANDIDATES) {
     if (existsSync(f)) { cachedFont = f; return cachedFont }
   }
-  cachedFont = ''
-  return cachedFont
+  // Deliberately do NOT cache the negative result. The font may be installed
+  // after the process started (it was, on this machine), and a sticky '' would
+  // keep subtitles broken until the next restart with no way to recover.
+  return ''
 }
 
 /** libass `force_style` FontName that matches the discovered font file. */

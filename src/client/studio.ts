@@ -51,6 +51,23 @@ const IMAGE_MODEL_SIZE_SUPPORTED: Record<string, string[]> = {
 }
 const DEFAULT_IMAGE_SIZES = ['1024x1024', '1024x768', '768x1024', '1280x720', '720x1280']
 
+/**
+ * 从模型 id 推断厂商。模型名本身带厂商前缀（`doubao-seedream-3-0`、`MiniMax-H3`、
+ * `qwen-image-plus`…），但界面上只显示中文名，用户看不出它是哪家的、Key 该配哪家。
+ * @param modelId - 模型 id。
+ * @returns 厂商显示名。
+ */
+export function vendorOf(modelId: string): string {
+  const m = String(modelId || '').toLowerCase()
+  if (m.startsWith('agnes')) return 'Agnes'
+  if (m.startsWith('doubao')) return '豆包'
+  if (m.startsWith('minimax')) return 'MiniMax'
+  if (m.startsWith('qwen')) return 'Qwen'
+  if (m.startsWith('deepseek')) return 'DeepSeek'
+  if (m.startsWith('ollama')) return 'Ollama'
+  return '其他'
+}
+
 /** Return the supported sizes for a given image model. */
 export function getImageSizeOptions(model: string): string[] {
   if (!model) return DEFAULT_IMAGE_SIZES
@@ -420,4 +437,55 @@ export function deleteProject(id: string): void {
   } catch {
     // ignore
   }
+}
+
+// ─── Generation history ────────────────────────────────────────────────────
+
+/** 一条生成历史。只存远程 URL（不存 base64），所以体积很小。 */
+export interface GenHistoryItem {
+  id: string
+  type: 'image' | 'video'
+  url: string
+  prompt: string
+  model: string
+  at: number
+}
+
+const HISTORY_KEY = 'agnes-studio-history'
+/** 最多保留多少条。 */
+const HISTORY_MAX = 24
+
+/**
+ * 读取生成历史（最新在前）。
+ * @returns 历史列表；不可用时返回空数组。
+ */
+export function listHistory(): GenHistoryItem[] {
+  try {
+    const raw = localStorage?.getItem(HISTORY_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as GenHistoryItem[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch { return [] }
+}
+
+/**
+ * 追加一条生成历史（同一 URL 不重复记），最多保留 HISTORY_MAX 条。
+ * @param item - 除 id / 时间戳外的历史字段。
+ * @returns 更新后的列表。
+ */
+export function pushHistory(item: Omit<GenHistoryItem, 'id' | 'at'>): GenHistoryItem[] {
+  const list = listHistory()
+  try {
+    const next: GenHistoryItem[] = [
+      { ...item, id: generateProjectId(), at: Date.now() },
+      ...list.filter(h => h.url !== item.url),
+    ].slice(0, HISTORY_MAX)
+    localStorage?.setItem(HISTORY_KEY, JSON.stringify(next))
+    return next
+  } catch { return list }
+}
+
+/** 清空生成历史。 */
+export function clearHistory(): void {
+  try { localStorage?.removeItem(HISTORY_KEY) } catch { /* ignore */ }
 }

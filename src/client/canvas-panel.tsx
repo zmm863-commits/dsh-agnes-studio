@@ -5,15 +5,8 @@
  * 逐节点真实 AI 生成（文本续写 / 文生图 / 文生视频·图生视频），
  * 状态存 localStorage。
  */
-declare const require: ((id: string) => unknown) | undefined
-function shellRequire(id: string): any { try { return typeof require === 'function' ? require(id) : undefined } catch { return undefined } }
-const React: any = shellRequire('react') ?? (globalThis as any).React ?? null
-const NOOP = (): void => {}
-const useState: any = React?.useState ?? ((i: unknown) => [i, NOOP])
-const useEffect: any = React?.useEffect ?? NOOP
-const useCallback: any = React?.useCallback ?? ((f: unknown) => f)
-const useRef: any = React?.useRef ?? ((i: unknown) => ({ current: i }))
-const createElement: any = React?.createElement ?? (() => null)
+
+import { useState, useEffect, useCallback, useRef, createElement } from './react-shim.ts'
 
 import { injectStyles } from './styles.ts'
 import { generateImage, generateVideo, pollVideoStatus } from './studio.ts'

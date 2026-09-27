@@ -188,19 +188,39 @@ const ReactDOM = {
     unmount() {},
   }),
 }
+// Oh Story's client half requires react/jsx-runtime at module scope; its jsx()
+// calls only run inside components, which this harness never renders.
+const jsxRuntime = { jsx: () => null, jsxs: () => null, Fragment: 'Fragment' }
 
 // ── module loader contract ─────────────────────────────────────────────
-let loaded = null
+// The MERGED bundle registers TWO factories in one file: the vendored
+// @oh-story/dsh half and the dsh-agnes-studio half. The shell's loader
+// collects both, and a factory resolves its sibling through require().
+const registrations = []
 const window = {
-  __ModuleLoader__: { load(spec) { loaded = spec } },
+  __ModuleLoader__: { load(spec) { registrations.push(spec) } },
   location: { origin: 'http://127.0.0.1:3080', search: '', href: '' },
   addEventListener() {}, removeEventListener() {},
 }
 
+// Oh Story's apply() registers into these; the stub plays the slot runtime:
+// it records every registration (spec + occupant component) and invokes the
+// inject callbacks exactly like the real slots service does, so the harness can
+// later render the panel occupant the way the runtime renders it.
+const slotCalls = []
+const slotRegistrations = []
 const ctx = {
   effect(fn) { fn(); return () => {} },
   get: () => undefined,
   on: () => () => {},
+  slots: {
+    inject(name, register) { slotCalls.push(['inject', name]); register(); return () => {} },
+    register(spec, component) {
+      slotCalls.push(['register', spec?.name])
+      slotRegistrations.push({ spec, component })
+      return () => {}
+    },
+  },
 }
 
 const sandbox = {
@@ -239,18 +259,29 @@ try {
 }
 check('client.js loads without throwing', true)
 
-check('module registered through __ModuleLoader__', loaded !== null)
-if (loaded === null) process.exit(1)
-check('loader id is the package name', loaded.id === 'dsh-agnes-studio', `got "${loaded.id}"`)
+const byId = new Map(registrations.map(spec => [spec.id, spec]))
+check('bundle registers exactly one factory', registrations.length === 1, `got ${registrations.length}`)
+check('no vendored Oh Story client half is registered', !byId.has('dsh-agnes-studio/oh-story'), [...byId.keys()].join(', '))
+check('registers the package own id', byId.has('dsh-agnes-studio'), [...byId.keys()].join(', '))
+const loaded = byId.get('dsh-agnes-studio')
+if (loaded === undefined) process.exit(1)
 check('factory is a function', typeof loaded.factory === 'function')
 if (typeof loaded.factory !== 'function') process.exit(1)
 
-// The shell passes ctx into the module's apply through the factory result.
+// The shell passes ctx into the module's apply through the factory result, and
+// hands each factory a require() that resolves the sibling registration.
 const requested = []
 const factoryRequire = id => {
   requested.push(id)
   if (id === 'react') return React
-  if (id === 'react-dom/client') return ReactDOM
+  if (id === 'react-dom' || id === 'react-dom/client') return ReactDOM
+  if (id === 'react/jsx-runtime') return jsxRuntime
+  if (id === '@deepseek-ai/dsh-client-store') return { defineStore: spec => spec }
+  const sibling = byId.get(id)
+  if (sibling !== undefined) {
+    if (sibling.exports === undefined) sibling.exports = sibling.factory(factoryRequire)
+    return sibling.exports
+  }
   throw new Error('Unknown module: ' + id)
 }
 
@@ -262,22 +293,48 @@ try {
   process.exit(1)
 }
 
-check('exports inject', Array.isArray(exportsObj.inject) && exportsObj.inject.includes('slots'))
+check('inject declares slots',
+  Array.isArray(exportsObj.inject) && exportsObj.inject.includes('slots'))
+// sessions / conversation 是 **DSH 官方服务**，不是 Oh Story 的私有物。
+// 撤销创作套件时客户端不再需要它们，故当时一并去掉；现在为了「从面板向当前会话
+// 发起创作任务」重新需要（槽位 inject(sessionId) → conversation.send）。
+// 真正要防 Oh Story 残留的是下面那条：不得 require 已撤下的 vendored sibling。
+check('inject declares the DSH-native task-dispatch services',
+  ['sessions', 'conversation'].every(s => (exportsObj.inject ?? []).includes(s)),
+  (exportsObj.inject ?? []).join(','))
 check('exports apply', typeof exportsObj.apply === 'function')
 check('resolved react from the shell', requested.includes('react'))
+check('does NOT require the withdrawn vendored sibling',
+  !requested.includes('dsh-agnes-studio/oh-story'))
 if (typeof exportsObj.apply !== 'function') process.exit(1)
 
 // No sidebar in this harness: apply must still not throw, and the entry is
 // created (placement waits for the shell's sidebar to appear).
 let applyError = null
 try {
-  exportsObj.apply(ctx)
+  await exportsObj.apply(ctx)
 } catch (error) {
   applyError = error
 }
 check('apply() runs without throwing', applyError === null, applyError?.message)
 
-// ── the click path: entry click must reach a render ────────────────────
+// The client half no longer vendors Oh Story at all (the 「✦ 创作套件」 tab was
+// withdrawn 2026-09-26), so none of its slots or tool views may be registered
+// from here. NOTE: this costs the dedicated tool-call views for the oh_story_*
+// tools (they fall back to the shell's default rendering) — the tools
+// themselves still work, they are provided by the host half.
+check('client registers no Oh Story seat slot',
+  !slotRegistrations.some(r => r.spec?.name === 'oh-story.panel-seat'))
+check('client registers no Oh Story workbench slots',
+  !slotRegistrations.some(r => String(r.spec?.name ?? '').includes('oh-story')))
+check('client registers no Oh Story tool views',
+  slotRegistrations.filter(r => r.spec?.name === 'tool.call.toolview').length === 0,
+  JSON.stringify(slotRegistrations.map(r => r.spec?.name)))
+
+// ── the click path: entry click must open the slot-rendered panel ──────
+// The panel is an occupant of shell.overlay now, so the harness plays the slot
+// runtime: it captures the registration and invokes the occupant component the
+// way the runtime would (passing renderSlot).
 const entries = body.querySelectorAll('[data-dsh-agnes-studio-entry]')
 const entry = entries[0] ?? null
 if (entry === null) {
@@ -292,26 +349,55 @@ check('sidebar entry element was created', entry !== null)
 if (entry !== null) {
   check('entry has a click listener', (entry.listeners.click ?? []).length > 0)
   check('entry has visible label', entry.innerHTML.includes('泡泡猫的影视工具'))
-  entry.dispatch('click')
-  check('click renders the panel (react-dom createRoot used)', rendered.length > 0,
-    'the panel did not render — this is the "点击没反应" symptom')
-  check('react-dom/client was required from the shell', requested.includes('react-dom/client'))
 
-  // ── overlay ownership + naming regressions ───────────────────────────
-  // The vanilla overlay layer owns the ONLY scrim, and it must not carry the
-  // attribute the stylesheet positions: a transformed wrapper becomes the
-  // containing block for the fixed panel, which used to make the panel jump on
-  // the first pixel of a drag and swallow close clicks.
-  const overlayContainer = body.querySelector('[data-dsh-agnes-studio-container]')
-  check('overlay container exists after open', overlayContainer !== null)
-  const overlayChildren = overlayContainer?.children ?? []
-  check('overlay layer owns the backdrop',
-    overlayChildren.some(c => c.dataset?.dshAgnesBackdrop !== undefined))
-  const frame = overlayChildren.find(c => c.dataset?.dshAgnesStudioFrame !== undefined)
+  // The panel seat: registered into shell.overlay, and the ONLY declarer of the
+  // private slot that carries the Oh Story workbench (a child slot can be
+  // declared exactly once — this is what makes the in-panel hosting legal).
+  const seat = slotRegistrations.find(r => r.spec?.id === 'agnes-studio')
+  check('panel seat registered in shell.overlay', seat !== undefined,
+    JSON.stringify(slotRegistrations.map(r => r.spec)))
+  // The withdrawn 「✦ 创作套件」 tab used to declare a private child slot here.
+  // It must stay gone: a stale declaration would re-open the whole slot plumbing.
+  check('panel seat declares no retired creative-suite child slot',
+    seat?.spec?.children?.['oh-story.panel-seat'] === undefined,
+    JSON.stringify(seat?.spec?.children))
+
+  // Closed by default: the occupant renders nothing until the entry is clicked.
+  check('panel is hidden before the click', seat.component({ renderSlot: () => null }) === null)
+  entry.dispatch('click')
+  check('entry click marks the sidebar row active', entry.dataset.active === 'true')
+
+  // Now the occupant renders the panel tree, exactly like the runtime renders it.
+  const suiteSlotCalls = []
+  const renderSlot = (name, props) => { suiteSlotCalls.push([name, props]); return { $$type: 'slot', name } }
+  const tree = seat.component({ renderSlot, SessionProvider: () => null })
+  check('occupant renders a panel tree after the click', tree !== null && typeof tree === 'object')
+  const treeText = JSON.stringify(tree)
+  check('overlay container renders', treeText.includes('data-dsh-agnes-studio-container'))
+  check('overlay layer owns the backdrop', treeText.includes('data-dsh-agnes-backdrop'))
   check('overlay frame is not the styled panel node',
-    frame !== undefined && frame.dataset.dshAgnesStudio === undefined)
-  check('overlay frame receives the sidebar offset variable',
-    frame?.parentElement?.style?.getPropertyValue('--agnes-sidebar-w') !== undefined)
+    treeText.includes('data-dsh-agnes-studio-frame') && !treeText.includes('data-dsh-agnes-studio"'))
+
+  // The panel is no longer wired to any slot renderer: the 创作套件 tab that
+  // consumed `renderSlot` was withdrawn. Assert the prop did not come back.
+  const findWithSuiteProp = (node, out = []) => {
+    if (node === null || typeof node !== 'object') return out
+    if (typeof node.$$type === 'function' && node.props?.creativeSuite !== undefined) out.push(node)
+    for (const child of [node.children ?? [], node.props?.children ?? []].flat(2)) findWithSuiteProp(child, out)
+    return out
+  }
+  const withSuiteProp = findWithSuiteProp(tree)
+  check('StudioPanel is NOT wired to a creative-suite renderer', withSuiteProp.length === 0,
+    String(withSuiteProp.length))
+  // 座位现在**会**调 renderSlot —— 但用的是我们自己的会话作用域子槽 agnes.workspace
+  // （sendTask 靠它注入，见 index.ts 的两段注册）。要防的是复活 Oh Story 已撤下的槽名。
+  const RETIRED_SLOTS = ['oh-story.panel-seat', 'oh-story.workspace']
+  check('panel never asks the slot runtime for a retired Oh Story seat',
+    suiteSlotCalls.every(([name]) => !RETIRED_SLOTS.includes(name)),
+    JSON.stringify(suiteSlotCalls))
+  check('panel seat declares our own session-scoped child slot',
+    seat?.spec?.children?.['agnes.workspace']?.scope === 'session',
+    JSON.stringify(seat?.spec?.children))
 
   // Source-level regressions. The React stub never invokes the component, so
   // naming/tree assertions read the shipped bundle itself.
@@ -320,8 +406,25 @@ if (entry !== null) {
     !source.includes('Agnes 创意工作站'))
   check('first-use key guide ships with the panel',
     source.includes('platform.agnes-ai.cn') && source.includes('agnes-api-key'))
-  check('no duplicated React backdrop element',
-    !/["']data-dsh-agnes-backdrop["']\s*:/.test(source))
+  // The seat owns the ONLY scrim now (the whole overlay lives in the slot tree),
+  // so what must not come back is a second, imperatively created backdrop.
+  check('no imperative scrim left behind (the seat owns the only backdrop)',
+    !/dataset\.dshAgnesBackdrop\s*=/.test(source))
+  const backdropNodes = (treeText.match(/data-dsh-agnes-backdrop/g) ?? []).length
+  check('exactly one backdrop element in the panel tree', backdropNodes === 1, String(backdropNodes))
+  // 创作套件相关的东西必须彻底消失（功能已撤，2026-09-26）。
+  check('creative suite tab is gone from the rail', !source.includes('创作套件'))
+  check('no workbench layout anchor is shipped', !source.includes('[data-agnes-suite]'))
+  check('no session anchor for a portalled workbench', !source.includes('data-agnes-suite-session'))
+  check('no Oh Story workbench slot names in the client',
+    !source.includes('oh-story.panel-seat') && !source.includes('oh-story.panel-workspace'))
+
+  // 短剧步骤条：completed 必须映射到「全部完成」。
+  // 原来的实现直接返回 STEPS.findIndex(...)，而未列出的状态会得到 -1 —— completed
+  // 恰好没列在 STEPS 里，于是 isActive(idx === -1) 与 isDone(idx < -1) 双双恒假：
+  // 任务跑完时步骤条全灭，而且 stepIdx >= 1/2/3 那几处还会把剧本、镜头、素材一起藏掉。
+  check('drama step index maps the completed boundary to "all done"',
+    /getStepIndex[\s\S]{0,500}?task\.status === "completed"[\s\S]{0,120}?return STEPS\.length/.test(source))
 
   // The sidebar entry renders in the DSH sidebar, OUTSIDE the panel root, so
   // our panel-scoped --ag-* tokens are undefined there and would fall back to a

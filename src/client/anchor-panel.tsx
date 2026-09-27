@@ -4,15 +4,8 @@
  * 三种画面模式：静态形象图 / 视频素材 / AI 生成画面。
  * 依赖（ffmpeg、中文字体、TTS Key）缺失时给出明确指引，而不是静默失败。
  */
-declare const require: ((id: string) => unknown) | undefined
-function shellRequire(id: string): any { try { return typeof require === 'function' ? require(id) : undefined } catch { return undefined } }
-const React: any = shellRequire('react') ?? (globalThis as any).React ?? null
-const NOOP = (): void => {}
-const useState: any = React?.useState ?? ((i: unknown) => [i, NOOP])
-const useEffect: any = React?.useEffect ?? NOOP
-const useCallback: any = React?.useCallback ?? ((f: unknown) => f)
-const useRef: any = React?.useRef ?? ((i: unknown) => ({ current: i }))
-const createElement: any = React?.createElement ?? (() => null)
+
+import { useState, useEffect, useCallback, useRef, createElement } from './react-shim.ts'
 
 import { injectStyles } from './styles.ts'
 import {
@@ -97,6 +90,10 @@ export function AnchorPanel() {
 
   const handleStop = useCallback(async () => {
     if (status?.anchor_id) await stopAnchor(status.anchor_id).catch(() => {})
+    // 必须把轮询一并停掉：原先只 setBusy(false)，pollAnchorStatus 仍会每 3 秒
+    // 去问一次服务器，既白跑请求，也可能在停止后把状态又改回去。
+    cancelRef.current?.()
+    cancelRef.current = null
     setBusy(false)
   }, [status])
 

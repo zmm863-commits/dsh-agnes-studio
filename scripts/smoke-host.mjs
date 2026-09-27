@@ -5,12 +5,18 @@
  *   - the /agnes-studio/api proxy route (client calls it for every Agnes API)
  *   - the agent-facing system-prompt section
  * and that registration is disposable (plugin stop must not leak either).
+ *
+ * It ALSO checks the merged plugin entry (lib/host-entry.js) — the file the
+ * profile actually loads — without running it: the vendored Oh Story half
+ * spawns python to materialise its provider adapter config, so its apply() is
+ * exercised on a live instance, not here.
  */
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const entry = pathToFileURL(join(root, 'lib', 'index.js')).href
+const mergedEntry = pathToFileURL(join(root, 'lib', 'host-entry.js')).href
 
 const failures = []
 const check = (label, ok, detail) => {
@@ -35,6 +41,31 @@ check('injects systemPrompt', (mod.inject ?? []).includes('systemPrompt'))
 check('injects credentials', (mod.inject ?? []).includes('credentials'))
 check('exports apply', typeof mod.apply === 'function')
 if (typeof mod.apply !== 'function') process.exit(1)
+
+// ── merged plugin entry (what the profile's bundle row loads) ──────────
+let merged
+try {
+  merged = await import(mergedEntry)
+} catch (error) {
+  check('merged entry imports (agnes + vendored oh-story)', false, error.message)
+  console.log('')
+  console.log(`FAILED: ${failures.length} check(s) — ${failures.join('; ')}`)
+  process.exit(1)
+}
+check('merged entry imports (agnes + vendored oh-story)', true)
+check('merged entry keeps the fiber name', merged.name === 'agnes-studio', `got "${merged.name}"`)
+check('merged entry exports apply', typeof merged.apply === 'function')
+
+const mergedInject = merged.inject ?? []
+for (const service of ['webServer', 'systemPrompt', 'credentials']) {
+  check(`merged inject keeps ${service}`, mergedInject.includes(service))
+}
+for (const service of ['skills', 'subagents', 'tools', 'typert']) {
+  check(`merged inject adds oh-story's ${service}`, mergedInject.includes(service))
+}
+check('merged inject has no duplicates', new Set(mergedInject).size === mergedInject.length,
+  mergedInject.join(','))
+check('merged entry re-exports buildUpstreamUrl', typeof merged.buildUpstreamUrl === 'function')
 
 // ── upstream URL joining (the /v1/v1 404 regression) ──────────────────
 if (typeof mod.buildUpstreamUrl === 'function') {
@@ -226,6 +257,67 @@ if (typeof route?.handler === 'function') {
     coverDoc.status === 400 && /docx|txt/i.test(JSON.parse(coverDoc.body ?? '{}').error ?? ''),
     String(coverDoc.body).slice(0, 120))
 }
+
+// ── the whole vendored Oh Story skill surface ──────────────────────────
+// Each provider resolves its tree from the vendored file's OWN directory
+// (vendor/oh-story/<pack>/skills), so enumerating them proves the four trees
+// survived the merge and every SKILL.md still parses with its frontmatter name
+// matching its directory. This is the actual "全量并入" contract.
+const { createOhStorySkillProvider, createDramaSkillProvider, createNovelToGameSkillProvider, createVideoRecapSkillProvider } =
+  await import(pathToFileURL(join(root, 'vendor', 'oh-story', 'index.js')).href)
+
+const expectedSkills = {
+  'short-drama': 11,
+  story: 13,
+  'novel-to-game': 7,
+  'video-recap': 6,
+}
+const providers = [
+  ['short-drama', createDramaSkillProvider()],
+  ['story', createOhStorySkillProvider()],
+  ['novel-to-game', createNovelToGameSkillProvider()],
+  ['video-recap', createVideoRecapSkillProvider()],
+]
+let totalSkills = 0
+for (const [label, provider] of providers) {
+  let listed = []
+  try {
+    listed = await provider.list()
+  } catch (error) {
+    check(`skill pack ${label} lists`, false, error.message)
+    continue
+  }
+  totalSkills += listed.length
+  check(`skill pack ${label} lists ${expectedSkills[label]} skills`,
+    listed.length === expectedSkills[label], `got ${listed.length}: ${listed.map(s => s.name).join(', ')}`)
+  check(`skill pack ${label} skills carry a description`,
+    listed.every(s => typeof s.description === 'string' && s.description.length > 0))
+  check(`skill pack ${label} skills are model-invocable`,
+    listed.every(s => s.invocation?.modelInvocable === true))
+}
+
+// Spot-check one skill of each business line end-to-end: list() → get() must
+// return the body with its DSH bridge preamble (no project-file leakage).
+// NOTE: `get()` matches on the provider name the entry itself carries — never
+// rewrite that field, or the lookup misses and yields an empty body.
+for (const [label, provider, name] of [
+  ['short-drama', providers[0][1], 'short-drama-produce'],
+  ['story', providers[1][1], 'story-long-write'],
+  ['novel-to-game', providers[2][1], 'novel-to-game'],
+  ['video-recap', providers[3][1], 'video-recap'],
+]) {
+  const listed = await provider.list()
+  const entry = listed.find(s => s.name === name)
+  if (entry === undefined) {
+    check(`skill ${name} is listed`, false)
+    continue
+  }
+  const loaded = await provider.get(entry)
+  check(`skill ${name} loads its body`,
+    typeof loaded?.content === 'string' && loaded.content.length > 200,
+    `${label}: ${loaded?.content?.length ?? 0} bytes`)
+}
+check('total merged skill count is 37', totalSkills === 37, `got ${totalSkills}`)
 
 console.log('')
 if (failures.length > 0) {

@@ -6,64 +6,23 @@
  * resolved from DSH's client module loader.
  */
 
-declare const require: ((id: string) => unknown) | undefined
-
-/** Resolve one shell-provided module without ever throwing at load time. */
-function shellRequire(id: string): any {
-  try {
-    if (typeof require === 'function') {
-      const mod = require(id)
-      if (mod !== undefined && mod !== null) return mod
-    }
-  } catch { /* fall through to the global */ }
-  return undefined
-}
-
-/**
- * React runtime, resolved once. A missing runtime must NOT throw here: this
- * module is evaluated while client.js loads, and a load-time throw would take
- * the whole browser half down instead of just this panel.
- */
-const React: any = shellRequire('react') ?? (globalThis as any).React ?? null
-
-/** No-op stand-ins keep the module loadable; the panel reports the real error. */
-const NOOP = (): void => {}
-const useState: any = React?.useState ?? ((initial: unknown) => [typeof initial === 'function' ? (initial as () => unknown)() : initial, NOOP])
-const useEffect: any = React?.useEffect ?? NOOP
-const useCallback: any = React?.useCallback ?? ((fn: unknown) => fn)
-const useRef: any = React?.useRef ?? ((initial: unknown) => ({ current: initial }))
-
-/** Build a detached element when React is unusable (keeps render paths safe). */
-const createElement: any = React?.createElement ?? (() => null)
+import { React, shellRequire, useState, useEffect, useCallback, useRef, createElement } from './react-shim.ts'
 
 import { injectStyles } from './styles.ts'
-import {
-  generateImage,
-  generateVideo,
-  pollVideoStatus,
-  fetchKeyStatus,
-  fetchModels,
-  generateProjectId,
-  saveProject,
-  listProjects,
-  deleteProject,
-  getCustomModels,
-  addCustomModel,
-  removeCustomModel,
-  getImageSizeOptions,
-  IMAGE_MODEL_OPTIONS,
-  VIDEO_MODEL_OPTIONS,
-  TEXT_MODEL_OPTIONS,
-  type KeyStatus,
-  type StudioProject,
-  type CustomModel,
-} from './studio.ts'
+import { generateImage, generateVideo, pollVideoStatus, fetchKeyStatus, fetchModels, generateProjectId, saveProject, listProjects, deleteProject, getCustomModels, addCustomModel, removeCustomModel, IMAGE_MODEL_OPTIONS, VIDEO_MODEL_OPTIONS, TEXT_MODEL_OPTIONS, type KeyStatus, type StudioProject, type CustomModel, type GenHistoryItem, listHistory, pushHistory } from './studio.ts'
 import { parseScript, isSupportedScript } from './import.ts'
-import { DramaPanel } from './drama-panel.tsx'
 import { PromptExpertPanel } from './prompt-expert-panel.tsx'
 import { AnchorPanel } from './anchor-panel.tsx'
 import { CanvasPanel } from './canvas-panel.tsx'
 import { CoverPanel } from './cover-panel.tsx'
+import { SettingsTab, AddModelModal } from './settings-tab.tsx'
+import { PanelTitlebar, KeyGuide, NavRail } from './panel-chrome.tsx'
+import { ImageVideoWorkspace } from './image-video-workspace.tsx'
+import {
+  PANEL_SIZE_KEY, PANEL_SIZE_ORDER, PARAMS_OPEN_KEY, resolvePanelSize, resolveParamsOpen, type PanelSize,
+} from './constants.ts'
+import { ModelsTab } from './models-tab.tsx'
+import { OhStoryPanel } from './ohstory-panel.tsx'
 
 /**
  * Mount a component into a container with React 18's createRoot.
@@ -71,8 +30,8 @@ import { CoverPanel } from './cover-panel.tsx'
  */
 export function mountReact(
   container: HTMLElement,
-  Component: (props: { onClose: () => void }) => unknown,
-  props: { onClose: () => void },
+  Component: (props: PanelProps) => unknown,
+  props: PanelProps,
 ): () => void {
   if (React === null) {
     throw new Error('[dsh-agnes-studio] React runtime is not available from the shell')
@@ -89,20 +48,12 @@ export function mountReact(
 /** Panel props. */
 interface PanelProps {
   onClose: () => void
+  /** 向当前会话发一条提示词（由槽位 inject 注入；拿不到时为 undefined）。 */
+  sendTask?: (text: string) => void
 }
 
 /** Tab type. */
 
-/** Left-rail modules: id, icon, and the label shown under the icon. */
-const MODULES: Array<{ id: string; icon: string; name: string }> = [
-  { id: 'image', icon: '🎨', name: '生图' },
-  { id: 'video', icon: '🎬', name: '生视频' },
-  { id: 'storyboard', icon: '📖', name: '短剧' },
-  { id: 'anchor', icon: '🎙', name: '口播' },
-  { id: 'canvas', icon: '🕸', name: '画布' },
-  { id: 'cover', icon: '📕', name: '封面' },
-  { id: 'expert', icon: '✨', name: '提示词' },
-]
 
 
 /** Theme choice: 'auto' follows the DSH shell, or an explicit override. */
@@ -132,24 +83,13 @@ function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
   return 'light'
 }
 
-type TabType = 'image' | 'video' | 'storyboard' | 'anchor' | 'canvas' | 'cover' | 'expert' | 'settings'
+type TabType =
+  | 'image' | 'video' | 'storyboard'
+  | 'anchor' | 'canvas' | 'cover'
+  | 'expert' | 'models' | 'settings'
+  | 'ohstory'
 
-/** Image aspect ratios. */
-const IMAGE_RATIOS = ['1:1', '3:4', '4:3', '16:9', '9:16', '2:3', '3:2', '21:9']
-/** Video durations in seconds. */
-const VIDEO_DURATIONS = ['4', '5', '6', '7', '8', '10', '12']
-/** Video resolutions. */
-const VIDEO_RESOLUTIONS = ['720P', '1080P']
-/** Video aspect ratios. */
-const VIDEO_ASPECT_RATIOS = ['16:9', '9:16', '1:1', '4:3', '3:4']
 
-/** Product name shown everywhere in the UI. */
-const PRODUCT_NAME = '泡泡猫的影视工具'
-
-/** Where a first-time user signs up and creates an API Key. */
-const AGNES_PLATFORM_URL = 'https://platform.agnes-ai.cn'
-/** Public quickstart (account → API key → first request). */
-const AGNES_DOCS_URL = 'https://agnes-ai.cn/zh-Hans/docs/quickstart'
 
 /** True when an error message means "no/invalid API key" rather than a build error. */
 function looksLikeKeyProblem(message: string): boolean {
@@ -160,19 +100,25 @@ function looksLikeKeyProblem(message: string): boolean {
 }
 
 /** Main panel component. */
-export function StudioPanel({ onClose }: PanelProps) {
+export function StudioPanel({ onClose, sendTask }: PanelProps) {
   injectStyles()
 
   // ── Core state ─────────────────────────────────────────────────────────
   const [tab, setTab] = useState<TabType>('image')
   // Light/dark are BOTH supported; this only picks the starting one.
   const [theme, setTheme] = useState<'light' | 'dark'>(() => resolveTheme('auto'))
+  const [panelSize, setPanelSize] = useState<PanelSize>(() => resolvePanelSize())
+  const [paramsOpen, setParamsOpen] = useState<boolean>(() => resolveParamsOpen())
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('')
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<{ type: 'image' | 'video'; url: string } | null>(null)
   const [error, setError] = useState('')
+  /** 生成历史（localStorage 持久化）。 */
+  const [history, setHistory] = useState<GenHistoryItem[]>(() => listHistory())
+  /** 中性提示（如「已停止等待」）—— 不是错误，别用 setError 显示。 */
+  const [notice, setNotice] = useState('')
 
   // ── Reference images ───────────────────────────────────────────────────
   const [refImages, setRefImages] = useState<string[]>([])
@@ -214,6 +160,11 @@ export function StudioPanel({ onClose }: PanelProps) {
   // ── Drag state ─────────────────────────────────────────────────────────
   const [dragging, setDragging] = useState(false)
   const dragOrigin = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
+  /**
+   * 视频生成的轮询取消标记。置 true 后，下一次 tick 跳出轮询循环。
+   * 注意：只停「等待」，不撤销已经在平台侧跑起来的任务 —— 文案里要讲清楚。
+   */
+  const cancelRef = useRef(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
   // ── API key onboarding ─────────────────────────────────────────────────
@@ -304,6 +255,7 @@ export function StudioPanel({ onClose }: PanelProps) {
     setLoadingText('✨ 生成图片中...')
     setProgress(0)
     setError('')
+    setNotice('')
     setResult(null)
 
     try {
@@ -322,6 +274,7 @@ export function StudioPanel({ onClose }: PanelProps) {
       clearInterval(progressTimer)
       setProgress(100)
       setResult({ type: 'image', url: resp.url })
+      setHistory(pushHistory({ type: 'image', url: resp.url, prompt: prompt.trim(), model: selectedImageModel }))
 
       if (project) {
         const scenes = [...project.scenes]
@@ -331,6 +284,8 @@ export function StudioPanel({ onClose }: PanelProps) {
           setProject(updated)
           saveProject(updated)
           setProjects(listProjects())
+          // 回写是静默的，用户不知道结果已经进了项目 —— 说一声
+          setNotice(`已写入「场景 ${selectedScene + 1}」`)
         }
       }
     } catch (e) {
@@ -372,8 +327,14 @@ export function StudioPanel({ onClose }: PanelProps) {
 
       let attempts = 0
       const maxAttempts = 180
+      cancelRef.current = false
       while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 3000))
+        if (cancelRef.current) {
+          // 只是不再等它；平台侧的任务可能还在跑，所以措辞要准确
+          setNotice('已停止等待。任务可能仍在平台侧生成，稍后可从平台查看。')
+          break
+        }
         attempts++
 
         const status = await pollVideoStatus(resp.videoId)
@@ -382,11 +343,14 @@ export function StudioPanel({ onClose }: PanelProps) {
         if (status.status === 'completed' && status.url) {
           setProgress(100)
           setResult({ type: 'video', url: status.url })
+          setHistory(pushHistory({ type: 'video', url: status.url, prompt: prompt.trim(), model: selectedVideoModel }))
 
           if (project) {
             const scenes = [...project.scenes]
             if (scenes[selectedScene]) {
               scenes[selectedScene] = { ...scenes[selectedScene], videoUrl: status.url, status: 'done' }
+              // 同上：回写要有个回执
+              setNotice(`已写入「场景 ${selectedScene + 1}」`)
               const updated = { ...project, scenes, updatedAt: Date.now() }
               setProject(updated)
               saveProject(updated)
@@ -665,355 +629,45 @@ export function StudioPanel({ onClose }: PanelProps) {
     return models[modelId] || modelId
   }
 
-  /** Determine if the current model tag should show "free". */
-  const isFreeModel = (modelId: string): boolean => {
-    return modelId.startsWith('agnes-')
-  }
-
-  // ── Model selector section (right panel) ───────────────────────────────
-  const renderModelSelector = () => {
-    const currentModels = tab === 'image' ? imageModels : videoModels
-    const currentModelId = tab === 'image' ? selectedImageModel : selectedVideoModel
-    const currentModelName = getModelDisplayName(currentModelId, currentModels)
-    const free = isFreeModel(currentModelId)
-
-    return createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' },
-        tab === 'image' ? '🎨 图片模型' : '🎬 视频模型'
-      ),
-      createElement('select', {
-        className: 'agnes-model-select',
-        value: currentModelId,
-        onChange: (e: Event) => {
-          const val = (e.target as HTMLSelectElement).value
-          if (tab === 'image') {
-            setSelectedImageModel(val)
-            const sizes = getImageSizeOptions(val)
-            setAvailableImageSizes(sizes)
-            if (sizes.length > 0 && !sizes.includes(imageSize)) {
-              setImageSize(sizes[0])
-            }
-          } else {
-            setSelectedVideoModel(val)
-          }
-        },
-      },
-        ...Object.entries(currentModels).map(([id, name]) =>
-          createElement('option', { key: id, value: id }, name)
-        )
-      ),
-      createElement('div', { className: 'agnes-model-info' },
-        free
-          ? createElement('span', { className: 'agnes-model-tag agnes-model-tag-free' }, '🎉 免费')
-          : createElement('span', { className: 'agnes-model-tag' }, '💎 付费'),
-        createElement('span', { style: { marginLeft: '6px', fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)' } }, currentModelName),
-      ),
-    )
-  }
-
-  // ── Image size selector ────────────────────────────────────────────────
-  const renderSizeSelector = () => {
-    if (tab !== 'image') return null
-
-    return createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '📐 尺寸'),
-      createElement('div', { className: 'agnes-size-grid' },
-        ...availableImageSizes.map(size =>
-          createElement('button', {
-            key: size,
-            className: `agnes-size-btn ${imageSize === size ? 'active' : ''}`,
-            onClick: () => setImageSize(size),
-          }, size.replace('x', '×'))
-        )
-      ),
-      createElement('div', { className: 'agnes-section-title', style: { marginTop: '12px' } }, '📏 宽高比'),
-      createElement('div', { className: 'agnes-ratio-grid' },
-        ...IMAGE_RATIOS.map(ratio =>
-          createElement('button', {
-            key: ratio,
-            className: `agnes-ratio-btn ${imageRatio === ratio ? 'active' : ''}`,
-            onClick: () => setImageRatio(ratio),
-          }, ratio)
-        )
-      ),
-    )
-  }
-
-  // ── Video mode selector ────────────────────────────────────────────────
-  const renderVideoModeSelector = () => {
-    if (tab !== 'video') return null
-
-    return createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '🎥 生成模式'),
-      createElement('div', { className: 'agnes-mode-grid' },
-        ...(['text', 'keyframe', 'reference'] as const).map(mode =>
-          createElement('button', {
-            key: mode,
-            className: `agnes-mode-btn ${videoMode === mode ? 'active' : ''}`,
-            onClick: () => setVideoMode(mode),
-          }, mode === 'text' ? '📝 文生视频' : mode === 'keyframe' ? '🖼 首尾帧' : '📷 参考图')
-        )
-      ),
-      videoMode === 'keyframe' ? createElement('div', { className: 'agnes-frame-upload' },
-        createElement('div', {
-          className: `agnes-frame-item ${firstFrame ? 'has-image' : ''}`,
-          onClick: () => handleUploadFrame('first'),
-        },
-          firstFrame
-            ? createElement('img', { src: firstFrame, alt: '首帧', style: { width: '100%', height: '100%', objectFit: 'cover' } })
-            : '🖼 首帧'
-        ),
-        createElement('div', {
-          className: `agnes-frame-item ${lastFrame ? 'has-image' : ''}`,
-          onClick: () => handleUploadFrame('last'),
-        },
-          lastFrame
-            ? createElement('img', { src: lastFrame, alt: '尾帧', style: { width: '100%', height: '100%', objectFit: 'cover' } })
-            : '🖼 尾帧（可选）'
-        ),
-      ) : null,
-      createElement('div', { className: 'agnes-input-row', style: { marginTop: '8px' } },
-        createElement('div', null,
-          createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', marginBottom: '4px' } }, '分辨率'),
-          createElement('select', {
-            className: 'agnes-select',
-            value: videoResolution,
-            onChange: (e: Event) => setVideoResolution((e.target as HTMLSelectElement).value),
-          },
-            ...VIDEO_RESOLUTIONS.map(r =>
-              createElement('option', { key: r, value: r }, r)
-            )
-          ),
-        ),
-        createElement('div', null,
-          createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', marginBottom: '4px' } }, '宽高比'),
-          createElement('select', {
-            className: 'agnes-select',
-            value: videoAspectRatio,
-            onChange: (e: Event) => setVideoAspectRatio((e.target as HTMLSelectElement).value),
-          },
-            ...VIDEO_ASPECT_RATIOS.map(r =>
-              createElement('option', { key: r, value: r }, r)
-            )
-          ),
-        ),
-      ),
-      createElement('div', { style: { marginTop: '8px' } },
-        createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', marginBottom: '4px' } }, '时长 (秒)'),
-        createElement('select', {
-          className: 'agnes-select',
-          value: videoDuration,
-          onChange: (e: Event) => setVideoDuration((e.target as HTMLSelectElement).value),
-        },
-          ...VIDEO_DURATIONS.map(d =>
-            createElement('option', { key: d, value: d }, `${d} 秒`)
-          )
-        ),
-      ),
-    )
-  }
-
   // ── Settings panel ─────────────────────────────────────────────────────
-  const renderSettings = () => createElement('div', { className: 'agnes-settings' },
-    createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🔑 API Key 状态'),
-      ...Object.entries(vendorStatus).map(([vendor, status]) =>
-        createElement('div', { key: vendor, className: 'agnes-setting-row' },
-          createElement('span', { className: 'agnes-setting-label' }, vendor.charAt(0).toUpperCase() + vendor.slice(1)),
-          createElement('span', {
-            className: status.configured ? 'agnes-badge agnes-badge-free' : 'agnes-badge agnes-badge-error'
-          }, status.configured ? '✅ 已配置' : '❌ 未配置'),
-        )
-      ),
-      Object.keys(vendorStatus).length === 0
-        ? createElement('div', { className: 'agnes-setting-row' },
-            createElement('span', { className: 'agnes-setting-label', style: { color: 'var(--ag-text-3, #6e80a3)' } }, '暂无厂商信息，点击下方按钮检测'),
-          )
-        : null,
-      createElement('button', {
-        className: 'agnes-btn agnes-btn-sm agnes-btn-ghost agnes-btn-full',
-        style: { marginTop: '8px' },
-        disabled: checkingKey,
-        onClick: () => { void checkKey(false) },
-      }, checkingKey ? '⏳ 检测中…' : '🔄 重新检测 Key'),
-    ),
+  /**
+   * 新增自定义模型，并把它并进图片 / 视频模型下拉列表。
+   * 由 AddModelModal 的 onConfirm 触发（业务副作用留在 panel，组件只管展示）。
+   */
+  const handleAddCustomModel = useCallback(() => {
+    if (!(newModel.id && newModel.name && newModel.base_url)) return
+    addCustomModel(newModel as CustomModel)
+    const updated = getCustomModels()
+    setCustomModels(updated)
+    const imgModels = { ...IMAGE_MODEL_OPTIONS }
+    const vidModels = { ...VIDEO_MODEL_OPTIONS }
+    updated.forEach(m => {
+      if (m.type === 'image') imgModels[m.id] = `${m.name} (自定义)`
+      if (m.type === 'video') vidModels[m.id] = `${m.name} (自定义)`
+    })
+    setImageModels(imgModels)
+    setVideoModels(vidModels)
+    setShowAddModelModal(false)
+    setNewModel({ id: '', name: '', type: 'image', base_url: '', api_key: '' })
+  }, [newModel])
 
-    createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '📖 配置指南'),
-      createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6', marginBottom: '8px' } },
-        '如需使用付费模型，请在对应厂商平台获取 API Key 并配置到 DSH。'
-      ),
-      createElement('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
-        createElement('a', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
-          href: AGNES_PLATFORM_URL,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        }, '🌐 Agnes 平台'),
-        createElement('a', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
-          href: AGNES_DOCS_URL,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        }, '📖 文档'),
-      ),
-      createElement('div', { style: { marginTop: '8px' } },
-        createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-ghost agnes-btn-full',
-          onClick: () => setGuideOpen(!guideOpen),
-        }, guideOpen ? '收起 Key 指引' : '🔑 首次使用？如何获取 / 配置 Key'),
-      ),
-    ),
-
-    createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🔧 自定义模型'),
-      createElement('button', {
-        className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
-        style: { marginBottom: '8px' },
-        onClick: () => setShowAddModelModal(true),
-      }, '+ 添加模型'),
-      customModels.length > 0
-        ? createElement('div', { className: 'agnes-custom-model-list' },
-            ...customModels.map(model =>
-              createElement('div', { key: model.id, className: 'agnes-custom-model-item' },
-                createElement('div', { className: 'agnes-custom-model-info' },
-                  createElement('div', { className: 'agnes-custom-model-name' }, model.name),
-                  createElement('div', { className: 'agnes-custom-model-meta' }, `${model.type} · ${model.base_url}`),
-                ),
-                createElement('button', {
-                  className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-                  onClick: () => {
-                    removeCustomModel(model.id)
-                    setCustomModels(getCustomModels())
-                    const updated = getCustomModels()
-                    const imgModels = { ...IMAGE_MODEL_OPTIONS }
-                    const vidModels = { ...VIDEO_MODEL_OPTIONS }
-                    updated.forEach(m => {
-                      if (m.type === 'image') imgModels[m.id] = `${m.name} (自定义)`
-                      if (m.type === 'video') vidModels[m.id] = `${m.name} (自定义)`
-                    })
-                    setImageModels(imgModels)
-                    setVideoModels(vidModels)
-                  },
-                }, '🗑'),
-              )
-            )
-          )
-        : createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', padding: '8px 0' } },
-            '暂无自定义模型。添加后可在模型选择器中使用。',
-          ),
-    ),
-
-    createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, 'ℹ️ 关于'),
-      createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
-        createElement('div', null, `版本: ${PRODUCT_NAME}`),
-        createElement('div', null, '🎨 支持多家厂商图片/视频生成'),
-        createElement('div', null, '📐 每个模型有独立的尺寸白名单'),
-        createElement('div', null, '🔧 可添加自定义 API 兼容模型'),
-        createElement('div', { style: { marginTop: '6px' } },
-          keyStatus === 'ready' ? '🔑 Agnes API Key：已配置'
-            : keyStatus === 'missing' ? '🔑 Agnes API Key：未配置'
-            : '🔑 Agnes API Key：未检测',
-        ),
-      ),
-    ),
-  )
-
-  // ── Add custom model modal ─────────────────────────────────────────────
-  const renderAddModelModal = () => showAddModelModal ? createElement('div', {
-    className: 'agnes-modal-backdrop',
-    onClick: () => setShowAddModelModal(false),
-  }, createElement('div', {
-    className: 'agnes-modal',
-    onClick: (e: Event) => e.stopPropagation(),
-  },
-    createElement('div', { className: 'agnes-modal-header' },
-      createElement('span', null, '添加自定义模型'),
-      createElement('button', {
-        className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-        onClick: () => setShowAddModelModal(false),
-      }, '✕'),
-    ),
-    createElement('div', { className: 'agnes-modal-body' },
-      createElement('div', { className: 'agnes-form-group' },
-        createElement('label', { className: 'agnes-form-label' }, '模型 ID'),
-        createElement('input', {
-          className: 'agnes-form-input',
-          value: newModel.id,
-          onChange: (e: Event) => setNewModel({ ...newModel, id: (e.target as HTMLInputElement).value }),
-          placeholder: '如 custom-image-1',
-        }),
-      ),
-      createElement('div', { className: 'agnes-form-group' },
-        createElement('label', { className: 'agnes-form-label' }, '显示名称'),
-        createElement('input', {
-          className: 'agnes-form-input',
-          value: newModel.name,
-          onChange: (e: Event) => setNewModel({ ...newModel, name: (e.target as HTMLInputElement).value }),
-          placeholder: '如 My Custom Image Model',
-        }),
-      ),
-      createElement('div', { className: 'agnes-form-group' },
-        createElement('label', { className: 'agnes-form-label' }, '类型'),
-        createElement('select', {
-          className: 'agnes-form-select',
-          value: newModel.type,
-          onChange: (e: Event) => setNewModel({ ...newModel, type: (e.target as HTMLSelectElement).value as 'text' | 'image' | 'video' }),
-        },
-          createElement('option', { value: 'image' }, '图片'),
-          createElement('option', { value: 'video' }, '视频'),
-          createElement('option', { value: 'text' }, '文本'),
-        ),
-      ),
-      createElement('div', { className: 'agnes-form-group' },
-        createElement('label', { className: 'agnes-form-label' }, 'API Base URL'),
-        createElement('input', {
-          className: 'agnes-form-input',
-          value: newModel.base_url,
-          onChange: (e: Event) => setNewModel({ ...newModel, base_url: (e.target as HTMLInputElement).value }),
-          placeholder: 'https://api.example.com/v1',
-        }),
-      ),
-      createElement('div', { className: 'agnes-form-group' },
-        createElement('label', { className: 'agnes-form-label' }, 'API Key（可选）'),
-        createElement('input', {
-          className: 'agnes-form-input',
-          value: newModel.api_key,
-          onChange: (e: Event) => setNewModel({ ...newModel, api_key: (e.target as HTMLInputElement).value }),
-          placeholder: 'sk-...',
-          type: 'password',
-        }),
-      ),
-    ),
-    createElement('div', { className: 'agnes-modal-footer' },
-      createElement('button', {
-        className: 'agnes-btn agnes-btn-secondary',
-        onClick: () => setShowAddModelModal(false),
-      }, '取消'),
-      createElement('button', {
-        className: 'agnes-btn agnes-btn-primary',
-        onClick: () => {
-          if (newModel.id && newModel.name && newModel.base_url) {
-            addCustomModel(newModel as CustomModel)
-            const updated = getCustomModels()
-            setCustomModels(updated)
-            const imgModels = { ...IMAGE_MODEL_OPTIONS }
-            const vidModels = { ...VIDEO_MODEL_OPTIONS }
-            updated.forEach(m => {
-              if (m.type === 'image') imgModels[m.id] = `${m.name} (自定义)`
-              if (m.type === 'video') vidModels[m.id] = `${m.name} (自定义)`
-            })
-            setImageModels(imgModels)
-            setVideoModels(vidModels)
-            setShowAddModelModal(false)
-            setNewModel({ id: '', name: '', type: 'image', base_url: '', api_key: '' })
-          }
-        },
-      }, '添加'),
-    ),
-  )) : null
-
+  /**
+   * 删除一个自定义模型并重建模型下拉列表。
+   * 由 SettingsTab 的 onRemoveCustomModel 触发。
+   */
+  const handleRemoveCustomModel = useCallback((modelId: string) => {
+    removeCustomModel(modelId)
+    const updated = getCustomModels()
+    setCustomModels(updated)
+    const imgModels = { ...IMAGE_MODEL_OPTIONS }
+    const vidModels = { ...VIDEO_MODEL_OPTIONS }
+    updated.forEach(m => {
+      if (m.type === 'image') imgModels[m.id] = `${m.name} (自定义)`
+      if (m.type === 'video') vidModels[m.id] = `${m.name} (自定义)`
+    })
+    setImageModels(imgModels)
+    setVideoModels(vidModels)
+  }, [])
   // ═════════════════════════════════════════════════════════════════════════
   // ── Main render ───────────────────────────────────────────────────────
   // ═════════════════════════════════════════════════════════════════════════
@@ -1024,119 +678,38 @@ export function StudioPanel({ onClose }: PanelProps) {
     'data-dsh-agnes-studio': '',
     'data-ag-tab': tab,
     'data-ag-theme': theme,
+    'data-ag-size': panelSize,
   },
-    // ── Title bar ──
-    createElement('div', {
-      className: 'agnes-titlebar',
-      onMouseDown: onDragStart,
-    },
-      createElement('span', { className: 'agnes-titlebar-icon' }, '🎬'),
-      createElement('span', { className: 'agnes-titlebar-text' }, PRODUCT_NAME),
-      createElement('span', { className: 'agnes-titlebar-module' },
-        (MODULES.find(m => m.id === tab)?.name) ?? (tab === 'settings' ? '设置' : '')),
-      createElement('div', { className: 'agnes-titlebar-spacer' }),
-      createElement('button', {
-        className: 'agnes-theme-toggle',
-        onClick: () => {
-          const next = theme === 'dark' ? 'light' : 'dark'
-          setTheme(next)
-          try { localStorage?.setItem(THEME_KEY, next) } catch { /* ignore */ }
-        },
-        title: theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题',
-      }, theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'),
-      createElement('span', { className: 'agnes-badge agnes-badge-free' }, '🎉 生图/视频免费'),
-      createElement('button', {
-        className: 'agnes-titlebar-btn',
-        onClick: onClose,
-        title: '关闭',
-        'aria-label': '关闭',
-      }, '✕'),
-    ),
-
-    // ── First-use API key guide ──
-    guideOpen ? createElement('div', { className: 'agnes-keyguide' },
-      createElement('div', { className: 'agnes-keyguide-head' },
-        createElement('span', { className: 'agnes-keyguide-title' }, '🔑 首次使用：需要一个 Agnes API Key'),
-        createElement('button', {
-          className: 'agnes-keyguide-close',
-          onClick: () => setGuideOpen(false),
-          title: '收起',
-        }, '收起'),
-      ),
-      createElement('div', { className: 'agnes-keyguide-steps' },
-        createElement('div', { className: 'agnes-keyguide-step' },
-          createElement('span', { className: 'agnes-keyguide-num' }, '1'),
-          createElement('span', null, '注册 / 登录 Agnes AI 平台（免费注册）'),
-        ),
-        createElement('div', { className: 'agnes-keyguide-step' },
-          createElement('span', { className: 'agnes-keyguide-num' }, '2'),
-          createElement('span', null, '在控制台「API Keys」里创建密钥，复制 sk- 开头的那一串'),
-        ),
-        createElement('div', { className: 'agnes-keyguide-step' },
-          createElement('span', { className: 'agnes-keyguide-num' }, '3'),
-          createElement('span', null,
-            '把它填到本机（任选一种）：DSH 设置 → 模型 → 凭据，新增 ',
-            createElement('code', null, 'agnes-api-key'),
-            '；或在本机 ',
-            createElement('code', null, '/dsh/.env'),
-            ' 写一行 ',
-            createElement('code', null, 'AGNES_API_KEY=sk-...'),
-          ),
-        ),
-      ),
-      createElement('div', { className: 'agnes-keyguide-actions' },
-        createElement('a', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
-          href: AGNES_PLATFORM_URL,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        }, '🌐 去注册 / 登录'),
-        createElement('a', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
-          href: AGNES_DOCS_URL,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        }, '📖 官方文档'),
-        createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-          disabled: checkingKey,
-          onClick: () => { void checkKey(false) },
-        }, checkingKey ? '⏳ 检测中…' : '🔄 重新检测'),
-        keyStatus === 'ready'
-          ? createElement('span', { className: 'agnes-keyguide-ok' }, '✅ Key 已配置')
-          : null,
-      ),
-      createElement('div', { className: 'agnes-keyguide-note' },
-        'Key 只保存在本机、只由后端进程用于调用 API，网页里不会出现；免费额度以平台规则为准。',
-      ),
-    ) : null,
-
+    createElement(PanelTitlebar, {
+      tab,
+      theme,
+      panelSize,
+      onCycleSize: () => {
+        const i = PANEL_SIZE_ORDER.indexOf(panelSize)
+        const next = PANEL_SIZE_ORDER[(i + 1) % PANEL_SIZE_ORDER.length]
+        setPanelSize(next)
+        try { localStorage?.setItem(PANEL_SIZE_KEY, next) } catch { /* ignore */ }
+      },
+      onToggleTheme: () => {
+        const next = theme === 'dark' ? 'light' : 'dark'
+        setTheme(next)
+        try { localStorage?.setItem(THEME_KEY, next) } catch { /* ignore */ }
+      },
+      onClose,
+      onDragStart,
+    }),
+    guideOpen ? createElement(KeyGuide, {
+      checkingKey,
+      keyStatus,
+      onClose: () => setGuideOpen(false),
+      onRecheck: () => { void checkKey(false) },
+    }) : null,
     // ── Workspace: vertical nav rail + content ──
     createElement('div', { className: 'agnes-shell' },
-      createElement('nav', { className: 'agnes-rail' },
-        ...MODULES.map(m =>
-          createElement('button', {
-            key: m.id,
-            className: `agnes-rail-item${tab === m.id ? ' active' : ''}`,
-            'data-tab': m.id,
-            onClick: () => setTab(m.id as TabType),
-            title: m.name,
-          },
-            createElement('span', { className: 'agnes-rail-icon' }, m.icon),
-            createElement('span', { className: 'agnes-rail-label' }, m.name),
-          ),
-        ),
-        createElement('div', { className: 'agnes-rail-spacer' }),
-        createElement('button', {
-          className: `agnes-rail-item${tab === 'settings' ? ' active' : ''}`,
-          'data-tab': 'settings',
-          onClick: () => setTab('settings' as TabType),
-          title: '设置',
-        },
-          createElement('span', { className: 'agnes-rail-icon' }, '⚙'),
-          createElement('span', { className: 'agnes-rail-label' }, '设置'),
-        ),
-      ),
+      createElement(NavRail, {
+        tab,
+        onSelect: (id) => setTab(id as TabType),
+      }),
       createElement('div', { className: 'agnes-main' },
 
     // ── Content area ──
@@ -1145,212 +718,96 @@ export function StudioPanel({ onClose }: PanelProps) {
       ? createElement('div', { style: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } },
           createElement(CanvasPanel, { textModels: TEXT_MODEL_OPTIONS, imageModels, videoModels }),
         )
-      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover')
+      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover' || tab === 'models' || tab === 'ohstory')
       // Full-width panels
       ? createElement('div', { style: { flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' } },
           tab === 'expert'
-            ? createElement(PromptExpertPanel, { textModels: TEXT_MODEL_OPTIONS })
+            ? createElement(PromptExpertPanel, {
+                textModels: TEXT_MODEL_OPTIONS,
+                onUseForImage: (text) => { setPrompt(text); setTab('image') },
+                onUseForVideo: (text) => { setPrompt(text); setTab('video') },
+              })
             : tab === 'anchor'
               ? createElement(AnchorPanel)
-              : tab === 'cover'
-                ? createElement(CoverPanel, { imageModels })
-                : renderSettings()
+              : tab === 'ohstory'
+                ? createElement(OhStoryPanel, { sendTask })
+                : tab === 'cover'
+                  ? createElement(CoverPanel, { imageModels })
+                  : tab === 'models'
+                    ? createElement(ModelsTab, {
+                        imageModels,
+                        videoModels,
+                        customModels,
+                        onOpenAddModel: () => setShowAddModelModal(true),
+                        onRemoveCustomModel: handleRemoveCustomModel,
+                      })
+                    : createElement(SettingsTab, {
+                        vendorStatus,
+                        checkingKey,
+                        onRecheckKey: () => { void checkKey(false) },
+                        guideOpen,
+                        onToggleGuide: () => setGuideOpen(!guideOpen),
+                        keyStatus,
+                      })
         )
       // Three-column layout (image / video / storyboard)
-      : createElement('div', { className: 'agnes-body' },
-          createElement('div', { className: 'agnes-center' },
-            createElement('div', { className: 'agnes-preview-area', style: tab === 'storyboard' ? { alignItems: 'stretch', justifyContent: 'stretch' } : undefined },
-              tab === 'storyboard'
-              ? createElement(DramaPanel, { textModels: TEXT_MODEL_OPTIONS, imageModels, videoModels })
-              : loading ? createElement('div', { className: 'agnes-skeleton' },
-                  createElement('div', { style: { fontSize: '24px' } }, '✨'),
-                  createElement('div', { className: 'agnes-skeleton-text' }, loadingText),
-                  createElement('div', { className: 'agnes-progress-bar' },
-                    createElement('div', { className: 'agnes-progress-fill', style: { width: `${progress}%` } }),
-                  ),
-                )
-              : result ? createElement('div', { style: { textAlign: 'center', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' } },
-                result.type === 'image'
-                  ? createElement('img', {
-                      src: result.url,
-                      alt: '生成结果',
-                      className: 'agnes-preview-img',
-                      style: { maxWidth: '100%', maxHeight: 'calc(100% - 40px)' },
-                    })
-                  : createElement('video', {
-                      src: result.url,
-                      controls: true,
-                      className: 'agnes-preview-video',
-                      style: { maxWidth: '100%', maxHeight: 'calc(100% - 40px)' },
-                    }),
-                createElement('div', { style: { marginTop: '8px', display: 'flex', gap: '8px' } },
-                  createElement('button', {
-                    className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
-                    onClick: () => handleDownload(result.url, `agnes-${Date.now()}.${result.type === 'image' ? 'png' : 'mp4'}`),
-                  }, '📥 下载'),
-                  createElement('button', {
-                    className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-                    onClick: () => { navigator.clipboard?.writeText(result.url) },
-                  }, '📋 复制链接'),
-                ),
-              )
-            : createElement('div', { className: 'agnes-empty' },
-                createElement('div', { className: 'agnes-empty-icon' },
-                  tab === 'image' ? '🎨' : tab === 'video' ? '🎬' : '📖',
-                ),
-                createElement('div', { className: 'agnes-empty-title' },
-                  tab === 'image' ? 'AI 生图' : tab === 'video' ? 'AI 生视频' : '🎬 短剧工作台',
-                ),
-                createElement('div', { className: 'agnes-empty-desc' },
-                  tab === 'image' ? '在右侧输入提示词，选择模型和尺寸，点击生成' :
-                  tab === 'video' ? '在右侧输入提示词，选择模型和模式，描述想要的视频内容' :
-                  '在「短剧」标签页中开始创作',
-                ),
-              ),
-        ),
-
-        createElement('div', { className: 'agnes-action-bar' },
-          createElement('button', {
-            className: 'agnes-btn agnes-btn-primary',
-            disabled: loading || !prompt.trim() || tab === 'settings',
-            onClick: tab === 'image' ? handleGenerateImage : handleGenerateVideo,
-          }, loading ? `⏳ ${loadingText}` : tab === 'image' ? '✨ 生成图片' : '🎬 生成视频'),
-          (tab === 'image' || tab === 'video') && project ? createElement('button', {
-            className: 'agnes-btn agnes-btn-secondary',
-            disabled: loading,
-            onClick: handleBatchGenerate,
-          }, '▶ 批量生成所有场景') : null,
-          result ? createElement('button', {
-            className: 'agnes-btn agnes-btn-ghost',
-            onClick: () => setResult(null),
-          }, '✕ 清除预览') : null,
-          error ? createElement('div', {
-            style: { marginLeft: 'auto', fontSize: '12px', color: '#ff6b6b' },
-          }, error) : null,
-        ),
-      ),
-
-      // ═══ Right panel — ONLY for image/video ═══
-      // The storyboard workbench renders its own right column, so mounting this
-      // one too left an empty 280px sidebar beside it.
-      (tab === 'image' || tab === 'video')
-        ? createElement('div', { className: 'agnes-right' },
-            createElement('div', { className: 'agnes-right-scroll' },
-
-          (tab === 'image' || tab === 'video') ? createElement('div', { className: 'agnes-section' },
-            createElement('div', { className: 'agnes-section-title' }, '📝 提示词'),
-            createElement('textarea', {
-              className: 'agnes-textarea',
-              value: prompt,
-              onChange: (e: Event) => setPrompt((e.target as HTMLTextAreaElement).value),
-              placeholder: tab === 'image'
-                ? '描述你想要生成的图片...\n\n例如：赛博朋克城市街道，雨夜，霓虹灯倒映在湿漉漉的地面，低角度镜头，电影级光照'
-                : '描述你想要生成的视频...\n\n例如：雨后的未来城市街道，霓虹灯倒映在地面，一辆银色跑车缓慢驶过，电影级运镜',
-              rows: 5,
-            }),
-          ) : null,
-
-          (tab === 'image' || tab === 'video') && project && project.scenes[selectedScene] ? createElement('div', { className: 'agnes-section' },
-            createElement('div', { className: 'agnes-section-title' }, `🎞 场景 ${selectedScene + 1} 提示词`),
-            createElement('textarea', {
-              className: 'agnes-textarea',
-              value: project.scenes[selectedScene].prompt,
-              onChange: (e: Event) => handleUpdateScenePrompt(selectedScene, (e.target as HTMLTextAreaElement).value),
-              onBlur: handleSaveScenePrompt,
-              placeholder: `为场景 ${selectedScene + 1} 编写提示词...`,
-              rows: 4,
-            }),
-            createElement('div', { style: { marginTop: '8px', display: 'flex', gap: '6px' } },
-              createElement('button', {
-                className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
-                disabled: loading || !project.scenes[selectedScene].prompt.trim(),
-                onClick: () => handleGenerateSceneImage(selectedScene),
-                style: { flex: 1 },
-              }, '✨ 生成此场景'),
-              createElement('button', {
-                className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-                onClick: () => {
-                  if (selectedScene > 0) setSelectedScene(selectedScene - 1)
-                },
-                disabled: selectedScene === 0,
-              }, '←'),
-              createElement('button', {
-                className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-                onClick: () => {
-                  if (project && selectedScene < project.scenes.length - 1) setSelectedScene(selectedScene + 1)
-                },
-                disabled: !project || selectedScene >= project.scenes.length - 1,
-              }, '→'),
-            ),
-          ) : null,
-
-          (tab === 'image' || tab === 'video') ? renderModelSelector() : null,
-          tab === 'image' ? renderSizeSelector() : null,
-          tab === 'video' ? renderVideoModeSelector() : null,
-
-          (tab === 'image' || tab === 'video')
-            ? createElement('div', { className: 'agnes-divider' })
-            : null,
-
-          (tab === 'image' || tab === 'video') ? createElement('div', { className: 'agnes-section' },
-            createElement('div', { className: 'agnes-section-title' }, '🖼 参考图片'),
-            createElement('div', { className: 'agnes-ref-chips' },
-              ...refImages.map((url, i) =>
-                createElement('div', { key: i, className: 'agnes-ref-chip' },
-                  createElement('img', { src: url, alt: `参考 ${i + 1}` }),
-                  createElement('button', {
-                    className: 'agnes-ref-chip-remove',
-                    onClick: () => setRefImages(refImages.filter((_, j) => j !== i)),
-                  }, '×'),
-                ),
-              ),
-              createElement('button', {
-                className: 'agnes-ref-chip-add',
-                onClick: () => {
-                  const input = document.createElement('input')
-                  input.type = 'file'
-                  input.accept = 'image/*'
-                  input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0]
-                    if (!file) return
-                    const reader = new FileReader()
-                    reader.onload = (ev) => {
-                      const url = ev.target?.result as string
-                      if (url) setRefImages([...refImages, url])
-                    }
-                    reader.readAsDataURL(file)
-                  }
-                  input.click()
-                },
-              }, '+'),
-            ),
-            refImages.length > 0 ? createElement('div', {
-              style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' },
-            }, `${refImages.length} 张参考图`) : createElement('div', {
-              style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' },
-            }, tab === 'video' && videoMode === 'keyframe' ? '纯文生视频模式（或上传首尾帧）' : '无参考图（纯文生模式）'),
-          ) : null,
-
-          (tab === 'image' || tab === 'video') ? createElement('div', { className: 'agnes-divider' }) : null,
-
-          (tab === 'image' || tab === 'video') ? createElement('div', { className: 'agnes-section' },
-            createElement('div', { className: 'agnes-section-title' }, 'ℹ️ 模型信息'),
-            createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
-              createElement('div', null, `🎨 当前图片模型: ${getModelDisplayName(selectedImageModel, imageModels)}`),
-              createElement('div', null, `🎬 当前视频模型: ${getModelDisplayName(selectedVideoModel, videoModels)}`),
-              createElement('div', null, `📐 图片尺寸: ${imageSize} · 比例: ${imageRatio}`),
-              tab === 'video' ? createElement('div', null, `🎥 视频模式: ${videoMode === 'text' ? '文生视频' : videoMode === 'keyframe' ? '首尾帧' : '参考图'} · ${videoResolution} · ${videoAspectRatio}`) : null,
-              createElement('div', { style: { marginTop: '6px' } },
-                keyStatus === 'ready' ? '🔑 API Key：已配置'
-                  : keyStatus === 'missing' ? '🔑 API Key：未配置'
-                  : '🔑 API Key：未检测',
-              ),
-            ),
-          ) : null,
-            ),
-          )
-        : null,
-    ),
+      : createElement(ImageVideoWorkspace, {
+          tab,
+          paramsOpen,
+          onCancel: () => { cancelRef.current = true },
+          notice,
+          history,
+          onShowHistory: (item) => setResult({ type: item.type, url: item.url }),
+          onToggleParams: () => {
+            const next = !paramsOpen
+            setParamsOpen(next)
+            try { localStorage?.setItem(PARAMS_OPEN_KEY, next ? '1' : '0') } catch { /* ignore */ }
+          },
+          imageModels,
+          videoModels,
+          prompt,
+          onPromptChange: setPrompt,
+          loading,
+          loadingText,
+          progress,
+          result,
+          onClearResult: () => setResult(null),
+          error,
+          onGenerateImage: handleGenerateImage,
+          onGenerateVideo: handleGenerateVideo,
+          onBatchGenerate: handleBatchGenerate,
+          onDownload: handleDownload,
+          project,
+          selectedScene,
+          onSelectScene: setSelectedScene,
+          onUpdateScenePrompt: handleUpdateScenePrompt,
+          onSaveScenePrompt: handleSaveScenePrompt,
+          onGenerateSceneImage: handleGenerateSceneImage,
+          selectedImageModel,
+          selectedVideoModel,
+          onSelectImageModel: setSelectedImageModel,
+          onSelectVideoModel: setSelectedVideoModel,
+          availableImageSizes,
+          onAvailableSizesChange: setAvailableImageSizes,
+          imageSize,
+          onImageSizeChange: setImageSize,
+          imageRatio,
+          onImageRatioChange: setImageRatio,
+          videoMode,
+          onVideoModeChange: setVideoMode,
+          firstFrame,
+          lastFrame,
+          onUploadFrame: handleUploadFrame,
+          videoResolution,
+          onVideoResolutionChange: setVideoResolution,
+          videoAspectRatio,
+          onVideoAspectRatioChange: setVideoAspectRatio,
+          videoDuration,
+          onVideoDurationChange: setVideoDuration,
+          refImages,
+          onRefImagesChange: setRefImages,
+          keyStatus,
+        }),
 
       ),
     ),
@@ -1374,6 +831,12 @@ export function StudioPanel({ onClose }: PanelProps) {
     ),
 
     // ── Modals ──
-    renderAddModelModal(),
+    createElement(AddModelModal, {
+      open: showAddModelModal,
+      draft: newModel,
+      onDraftChange: setNewModel,
+      onClose: () => setShowAddModelModal(false),
+      onConfirm: handleAddCustomModel,
+    }),
   )
 }

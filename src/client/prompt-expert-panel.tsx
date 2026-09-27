@@ -1,21 +1,21 @@
 /**
  * 提示词专家面板 — 7 类专家，中文想法 → 中英对照提示词
  */
-declare const require: ((id: string) => unknown) | undefined
-function shellRequire(id: string): any { try { return typeof require === 'function' ? require(id) : undefined } catch { return undefined } }
-const React: any = shellRequire('react') ?? (globalThis as any).React ?? null
-const NOOP = (): void => {}
-const useState: any = React?.useState ?? ((i: unknown) => [i, NOOP])
-const useEffect: any = React?.useEffect ?? NOOP
-const useCallback: any = React?.useCallback ?? ((f: unknown) => f)
-const createElement: any = React?.createElement ?? (() => null)
+
+import { useState, useEffect, useCallback, createElement } from './react-shim.ts'
 
 import { injectStyles } from './styles.ts'
 import { fetchExpertTypes, generateExpertPrompt, type ExpertType } from './prompt-expert.ts'
 
-interface Props { textModels: Record<string, string> }
+interface Props {
+  textModels: Record<string, string>
+  /** 把生成的提示词直接送到「生图」页。未提供时不显示该按钮。 */
+  onUseForImage?: (prompt: string) => void
+  /** 把生成的提示词直接送到「生视频」页。未提供时不显示该按钮。 */
+  onUseForVideo?: (prompt: string) => void
+}
 
-export function PromptExpertPanel({ textModels }: Props) {
+export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: Props) {
   injectStyles()
   const [types, setTypes] = useState<ExpertType[]>([])
   const [selected, setSelected] = useState('')
@@ -121,12 +121,55 @@ export function PromptExpertPanel({ textModels }: Props) {
         disabled: loading || !idea.trim(),
         onClick: handleGenerate,
       }, loading ? '⏳ 生成中...' : '✨ 生成提示词'),
+      loading ? createElement('div', {
+        style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', textAlign: 'center' },
+      }, `正在调用 ${textModels[model] || model}…通常 5–20 秒`) : null,
       error ? createElement('div', { style: { marginTop: '8px', padding: '6px', borderRadius: '6px', background: 'rgba(255,107,107,0.12)', color: '#ff6b6b', fontSize: '11px' } }, error) : null,
       result ? createElement('div', {
         style: { marginTop: '12px', padding: '12px', borderRadius: '8px', background: '#252538', border: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'pre-wrap', fontSize: '12px', lineHeight: 1.6, maxHeight: '300px', overflowY: 'auto' },
       },
         result,
         createElement('button', { className: 'agnes-btn agnes-btn-sm agnes-btn-secondary', style: { marginTop: '8px' }, onClick: () => handleCopy(result) }, '📋 复制'),
+        // 打通到生图页：原先这里只有「复制」，用户得自己切页签再粘一遍。
+        // 只在拿到英文提示词时更实用，但中文也能直接用，所以不做内容判断。
+        onUseForImage ? createElement('button', {
+          className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
+          style: { marginTop: '8px', marginLeft: '6px' },
+          title: '把这段提示词填到「生图」页并切过去',
+          onClick: () => onUseForImage(result),
+        }, '🎨 去生图') : null,
+        onUseForVideo ? createElement('button', {
+          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
+          style: { marginTop: '8px', marginLeft: '6px' },
+          title: '把这段提示词填到「生视频」页并切过去',
+          onClick: () => onUseForVideo(result),
+        }, '🎬 去生视频') : null,
+      ) : null,
+
+      // 生成历史：原先只写进 localStorage（20 条）却没有任何界面入口 ——
+      // 存了、但用户永远看不到。这里补上，点击即载入那一条。
+      history.length > 0 ? createElement('div', { style: { marginTop: '16px' } },
+        createElement('div', {
+          style: { fontSize: '12px', fontWeight: 600, color: 'var(--ag-text-2, #2a3c5e)', marginBottom: '6px' },
+        }, `🕘 历史（${history.length}）`),
+        ...history.map((h, i) =>
+          createElement('div', {
+            key: `${h.time}-${i}`,
+            title: '点击载入这一条',
+            style: {
+              padding: '8px', marginBottom: '6px', borderRadius: '6px', cursor: 'pointer',
+              background: 'var(--ag-surface-2, rgba(255,255,255,0.55))',
+              border: '1px solid rgba(255,255,255,0.06)',
+            },
+            onClick: () => { setSelected(h.type); setIdea(h.idea); setResult(h.result); setError('') },
+          },
+            createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' } },
+              `${types.find((t: ExpertType) => t.key === h.type)?.name || h.type} · ${new Date(h.time).toLocaleString()}`),
+            createElement('div', {
+              style: { fontSize: '11px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+            }, h.idea),
+          ),
+        ),
       ) : null,
     ) : createElement('div', { style: { padding: '40px', textAlign: 'center', color: 'var(--ag-text-3, #6e80a3)' } }, '👆 选择一个专家开始'),
   )

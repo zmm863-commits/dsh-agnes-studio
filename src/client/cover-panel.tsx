@@ -1,14 +1,8 @@
 /**
  * 小说封面设计 —— 上传 TXT/DOCX 自动提取书名/作者/简介，生成 3:4 标准封面。
  */
-declare const require: ((id: string) => unknown) | undefined
-function shellRequire(id: string): any { try { return typeof require === 'function' ? require(id) : undefined } catch { return undefined } }
-const React: any = shellRequire('react') ?? (globalThis as any).React ?? null
-const NOOP = (): void => {}
-const useState: any = React?.useState ?? ((i: unknown) => [i, NOOP])
-const useEffect: any = React?.useEffect ?? NOOP
-const useCallback: any = React?.useCallback ?? ((f: unknown) => f)
-const createElement: any = React?.createElement ?? (() => null)
+
+import { useState, useEffect, useCallback, createElement } from './react-shim.ts'
 
 import { injectStyles } from './styles.ts'
 import { generateImage } from './studio.ts'

@@ -30,8 +30,8 @@ function parseJsonScript(content: string): StoryScene[] {
     if (data.scenes && Array.isArray(data.scenes)) {
       return data.scenes.map((s: Record<string, unknown>, i: number) => ({
         name: String(s.name || s.title || `场景 ${i + 1}`),
-        prompt: String(s.prompt || s.description || s画面 || ''),
-        motion: String(s.motion || s.action || s动作 || ''),
+        prompt: String(s.prompt || s.description || s.画面 || ''),
+        motion: String(s.motion || s.action || s.动作 || ''),
         duration: Number(s.duration || 5),
         status: 'pending' as const,
       }))
