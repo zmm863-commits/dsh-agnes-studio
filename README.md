@@ -2,6 +2,16 @@
 
 充分利用 Agnes AI 免费生图/视频大模型的 DSH 插件（内部名：Agnes 创意工作站）。
 
+## 界面
+
+| ✍️ 创作台（新增） | 🎨 生图 |
+|---|---|
+| ![创作台](screenshots/01-ohstory.png) | ![生图](screenshots/02-image.png) |
+
+| 📖 短剧 | 🕸 画布 |
+|---|---|
+| ![短剧](screenshots/03-drama.png) | ![画布](screenshots/04-canvas.png) |
+
 ## 核心特性
 
 - **🎨 文生图** — Image 2.5 Flash，支持 1K-4K 尺寸，免费
