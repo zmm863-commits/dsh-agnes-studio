@@ -5,3 +5,4 @@ node_modules/
 # 杂项
 *.log
 .DS_Store
+*.tgz

@@ -21,8 +21,13 @@ import { ImageVideoWorkspace } from './image-video-workspace.tsx'
 import {
   PANEL_SIZE_KEY, PANEL_SIZE_ORDER, PARAMS_OPEN_KEY, resolvePanelSize, resolveParamsOpen, type PanelSize,
 } from './constants.ts'
-import { ModelsTab } from './models-tab.tsx'
 import { OhStoryPanel } from './ohstory-panel.tsx'
+import { BgVideoPanel } from './bgvideo-panel.tsx'
+import { MvPanel } from './mv-panel.tsx'
+import { NovelSplitPanel } from './novel-split-panel.tsx'
+import { ToolboxPanel } from './toolbox-panel.tsx'
+import { VideoparsePanel } from './videoparse-panel.tsx'
+import { WechatPanel } from './wechat-panel.tsx'
 
 /**
  * Mount a component into a container with React 18's createRoot.
@@ -87,7 +92,7 @@ type TabType =
   | 'image' | 'video' | 'storyboard'
   | 'anchor' | 'canvas' | 'cover'
   | 'expert' | 'models' | 'settings'
-  | 'ohstory'
+  | 'ohstory' | 'bgvideo' | 'mv' | 'novel-split' | 'toolbox' | 'videoparse' | 'wechat'
 
 
 
@@ -718,7 +723,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
       ? createElement('div', { style: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } },
           createElement(CanvasPanel, { textModels: TEXT_MODEL_OPTIONS, imageModels, videoModels }),
         )
-      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover' || tab === 'models' || tab === 'ohstory')
+      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover' || tab === 'models' || tab === 'ohstory' || tab === 'bgvideo' || tab === 'mv' || tab === 'novel-split' || tab === 'toolbox' || tab === 'videoparse' || tab === 'wechat')
       // Full-width panels
       ? createElement('div', { style: { flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' } },
           tab === 'expert'
@@ -731,24 +736,35 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
               ? createElement(AnchorPanel)
               : tab === 'ohstory'
                 ? createElement(OhStoryPanel, { sendTask })
-                : tab === 'cover'
-                  ? createElement(CoverPanel, { imageModels })
-                  : tab === 'models'
-                    ? createElement(ModelsTab, {
-                        imageModels,
-                        videoModels,
-                        customModels,
-                        onOpenAddModel: () => setShowAddModelModal(true),
-                        onRemoveCustomModel: handleRemoveCustomModel,
-                      })
-                    : createElement(SettingsTab, {
-                        vendorStatus,
-                        checkingKey,
-                        onRecheckKey: () => { void checkKey(false) },
-                        guideOpen,
-                        onToggleGuide: () => setGuideOpen(!guideOpen),
-                        keyStatus,
-                      })
+                : tab === 'bgvideo'
+                  ? createElement(BgVideoPanel)
+                  : tab === 'mv'
+                    ? createElement(MvPanel)
+                    : tab === 'novel-split'
+                      ? createElement(NovelSplitPanel)
+                      : tab === 'toolbox'
+                        ? createElement(ToolboxPanel)
+                        : tab === 'videoparse'
+                          ? createElement(VideoparsePanel)
+                          : tab === 'wechat'
+                            ? createElement(WechatPanel)
+                            : tab === 'cover'
+                              ? createElement(CoverPanel, { imageModels })
+                              : createElement(SettingsTab, {
+                                  vendorStatus,
+                                  checkingKey,
+                                  onRecheckKey: () => { void checkKey(false) },
+                                  guideOpen,
+                                  onToggleGuide: () => setGuideOpen(!guideOpen),
+                                  keyStatus,
+                                  // 模型清单已并入设置页（原「配置 → 模型」独立页撤掉）
+                                  textModels: TEXT_MODEL_OPTIONS,
+                                  imageModels,
+                                  videoModels,
+                                  customModels,
+                                  onOpenAddModel: () => setShowAddModelModal(true),
+                                  onRemoveCustomModel: handleRemoveCustomModel,
+                                })
         )
       // Three-column layout (image / video / storyboard)
       : createElement(ImageVideoWorkspace, {

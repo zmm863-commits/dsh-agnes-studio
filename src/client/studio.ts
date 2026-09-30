@@ -292,12 +292,18 @@ export async function pollVideoStatus(videoId: string): Promise<{ status: string
   const progress = Number(resp.progress || 0)
 
   if (status === 'completed') {
+    // 上游把成片地址放在**顶层 url**（实测 agnes-video-2.5 不返回 metadata 字段）；
+    // 旧写法只读 metadata.url 会拿到空串 —— 视频生成成功却看不到成片。
     const meta = resp.metadata as Record<string, unknown> | undefined
-    return { status: 'completed', url: String(meta?.url || ''), progress: 100 }
+    const url = String(resp.url || meta?.url || '')
+    return { status: 'completed', url, progress: 100 }
   }
   if (status === 'failed') {
-    const err = resp.error as Record<string, unknown> | undefined
-    return { status: 'failed', error: String(err?.message || '视频生成失败'), progress }
+    const err = resp.error as unknown
+    const msg = typeof err === 'string'
+      ? err
+      : String((err as { message?: unknown } | undefined)?.message || '视频生成失败')
+    return { status: 'failed', error: msg, progress }
   }
   return { status, progress }
 }
@@ -357,7 +363,16 @@ export async function fetchModels(): Promise<{
   try {
     const resp = await fetch('/agnes-studio/api/models', { method: 'GET' })
     if (resp.ok) {
-      return await resp.json() as any
+      // ⚠ 后端返回的键名是 textModels / imageModels / videoModels，
+      // 而本函数的返回类型用的是 text / image / video。早期直接 `as any` 透传，
+      // 导致调用方拿到的 models.image 是 undefined → {...undefined} = {}，
+      // 把图像/视频模型列表清空成 0 个（文本因未被覆盖而侥幸正常）。
+      const data = await resp.json() as Record<string, unknown>
+      return {
+        text: (data.textModels ?? data.text ?? TEXT_MODEL_OPTIONS) as Record<string, string>,
+        image: (data.imageModels ?? data.image ?? IMAGE_MODEL_OPTIONS) as Record<string, string>,
+        video: (data.videoModels ?? data.video ?? VIDEO_MODEL_OPTIONS) as Record<string, string>,
+      }
     }
   } catch { /* fall through */ }
   return {

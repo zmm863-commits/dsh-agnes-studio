@@ -41,6 +41,12 @@ export const MODULE_GROUPS: Array<{ id: string; label: string; items: NavModule[
     items: [
       { id: 'ohstory', icon: '✍️', name: '创作台' },
       { id: 'storyboard', icon: '📖', name: '短剧' },
+      { id: 'bgvideo', icon: '🎬', name: '背景视频' },
+      { id: 'mv', icon: '🎵', name: 'MTV' },
+      { id: 'novel-split', icon: '📖', name: '小说工具' },
+      { id: 'toolbox', icon: '🧰', name: '多能宝箱' },
+      { id: 'videoparse', icon: '🎬', name: '视频解析' },
+      { id: 'wechat', icon: '📱', name: '公众号' },
       { id: 'canvas', icon: '🕸', name: '画布' },
       { id: 'anchor', icon: '🎙', name: '口播' },
       { id: 'cover', icon: '📕', name: '封面' },
@@ -54,7 +60,6 @@ export const CONFIG_GROUP: { id: string; label: string; items: NavModule[] } = {
   id: 'config',
   label: '配置',
   items: [
-    { id: 'models', icon: '🧩', name: '模型' },
     { id: 'settings', icon: '⚙', name: '设置' },
   ],
 }

@@ -1,6 +1,6 @@
 {
   "name": "dsh-agnes-studio",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "🎬 泡泡猫的影视工具 — 生图/生视频/短剧/口播/画布/封面 + 全量并入的 Oh Story（短剧、网文、视频解说、小说改游戏）。全局浮层，不堵对话框。",
   "type": "module",
   "license": "MIT",

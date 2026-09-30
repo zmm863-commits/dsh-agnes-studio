@@ -11,7 +11,7 @@
  */
 import { createElement } from './react-shim.ts'
 import { AGNES_DOCS_URL, AGNES_PLATFORM_URL, PRODUCT_NAME } from './constants.ts'
-import type { KeyStatus } from './studio.ts'
+import { vendorOf, type KeyStatus } from './studio.ts'
 
 /** 厂商凭据探测结果。 */
 export interface VendorStatus {
@@ -27,6 +27,29 @@ export interface SettingsTabProps {
   guideOpen: boolean
   onToggleGuide: () => void
   keyStatus: KeyStatus
+
+  // ── 模型清单（原「配置 → 模型」页已并入本页）────────────────────────
+  textModels: Record<string, string>
+  imageModels: Record<string, string>
+  videoModels: Record<string, string>
+  customModels: Array<{ id: string; name: string; type: string; base_url: string }>
+  onOpenAddModel: () => void
+  onRemoveCustomModel: (id: string) => void
+}
+
+/**
+ * 平台明确提供免费额度的模型；其余需要自备对应厂商的 API Key。
+ * 只列已经在代码里确认过的三个「推荐款」，不猜。
+ */
+const FREE_MODEL_IDS = new Set([
+  'agnes-3.0-flash',
+  'agnes-image-2.5-flash',
+  'agnes-video-2.5-flash',
+])
+
+/** 自定义模型的命名约定（与 models-tab 保持一致）。 */
+function isCustomName(name: string): boolean {
+  return name.endsWith('(自定义)')
 }
 
 /** 添加自定义模型弹窗的表单草稿。 */
@@ -54,8 +77,40 @@ export interface AddModelModalProps {
 export function SettingsTab(props: SettingsTabProps): unknown {
   const {
     vendorStatus, checkingKey, onRecheckKey, guideOpen, onToggleGuide,
-    keyStatus,
+    keyStatus, textModels, imageModels, videoModels,
+    customModels, onOpenAddModel, onRemoveCustomModel,
   } = props
+
+  const nText = Object.keys(textModels).length
+  const nImage = Object.keys(imageModels).length
+  const nVideo = Object.keys(videoModels).length
+  const nAll = nText + nImage + nVideo
+
+  /**
+   * 一行一个模型：显示名 + 厂商 + 来源/计费。
+   *
+   * 「内置」= Agnes 系列，API Key 随插件提供，无需自己配置（2.5 与 3.0 同属
+   * Agnes 平台，共用一个 Key）；「需 Key」= 其他厂商，要在对应平台申请。
+   * 计费单独标：平台明确免费的标「免费」，其余标「按量」。
+   */
+  const modelRows = (models: Record<string, string>): unknown[] =>
+    Object.entries(models).map(([id, name]) => {
+      const custom = isCustomName(name)
+      const builtin = id.startsWith('agnes')
+      const free = FREE_MODEL_IDS.has(id)
+      return createElement('div', { key: id, className: 'agnes-setting-row' },
+        createElement('span', { className: 'agnes-setting-label' }, name),
+        createElement('span', { className: 'agnes-badge' }, vendorOf(id)),
+        createElement('span', {
+          className: builtin ? 'agnes-badge agnes-badge-free' : 'agnes-badge',
+        }, custom ? '自定义' : builtin ? '内置' : '需 Key'),
+        custom
+          ? null
+          : createElement('span', {
+              className: free ? 'agnes-badge agnes-badge-free' : 'agnes-badge',
+            }, free ? '免费' : '按量'),
+      )
+    })
 
   return createElement('div', { className: 'agnes-settings' },
     createElement('div', { className: 'agnes-setting-group' },
@@ -109,10 +164,51 @@ export function SettingsTab(props: SettingsTabProps): unknown {
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🔧 模型管理'),
+      createElement('div', { className: 'agnes-setting-group-title' },
+        `📊 可用模型（共 ${nAll + customModels.length} 个）`),
       createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
-        '模型清单与自定义模型的增删，已移到左侧导航「配置 → 模型」。',
+        `文本 ${nText} 个 · 图像 ${nImage} 个 · 视频 ${nVideo} 个` +
+        (customModels.length > 0 ? ` · 自定义 ${customModels.length} 个` : ''),
       ),
+      createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6', margin: '4px 0 10px' } },
+        '「内置」= Agnes 系列，API Key 已随插件提供，开箱即用（2.5 与 3.0 同属 Agnes 平台，共用一个 Key）；「需 Key」= 需在对应厂商申请后配置到 DSH。计费另见「免费 / 按量」。',
+      ),
+
+      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '8px 0 6px' } }, `📝 文本模型（${nText}）`),
+      ...modelRows(textModels),
+
+      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '14px 0 6px' } }, `🎨 图像模型（${nImage}）`),
+      ...modelRows(imageModels),
+
+      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '14px 0 6px' } }, `🎬 视频模型（${nVideo}）`),
+      ...modelRows(videoModels),
+    ),
+
+    createElement('div', { className: 'agnes-setting-group' },
+      createElement('div', { className: 'agnes-setting-group-title' }, `🔧 自定义模型（${customModels.length}）`),
+      createElement('button', {
+        className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
+        style: { marginBottom: '8px' },
+        onClick: onOpenAddModel,
+      }, '+ 添加模型'),
+      customModels.length > 0
+        ? createElement('div', { className: 'agnes-custom-model-list' },
+            ...customModels.map(model =>
+              createElement('div', { key: model.id, className: 'agnes-custom-model-item' },
+                createElement('div', { className: 'agnes-custom-model-info' },
+                  createElement('div', { className: 'agnes-custom-model-name' }, model.name),
+                  createElement('div', { className: 'agnes-custom-model-meta' }, `${model.type} · ${model.base_url}`),
+                ),
+                createElement('button', {
+                  className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
+                  onClick: () => onRemoveCustomModel(model.id),
+                }, '🗑'),
+              ),
+            ),
+          )
+        : createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', padding: '8px 0' } },
+            '暂无自定义模型。添加后可在模型选择器里直接选用。',
+          ),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },

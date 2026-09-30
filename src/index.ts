@@ -14,6 +14,12 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-credentials'
 import { handleDramaRoute, rehydrateDramas, resolveDramaMedia, type DramaHost } from './drama-engine.js'
 import { handleAnchorRoute, rehydrateAnchors, resolveAnchorMedia, type AnchorHost } from './anchor-engine.js'
+import { handleBgVideoRoute, rehydrateBgVideos, type BgVideoHost } from './bgvideo-engine.js'
+import { handleMvRoute, rehydrateMvTasks, type MvHost } from './mv-engine.js'
+import { handleNovelSplitRoute, handleDeaiRoute, rehydrateNovelSplit, type NovelSplitHost } from './novel-split-engine.js'
+import { handleToolboxRoute, rehydrateToolbox, type ToolboxHost } from './toolbox-engine.js'
+import { handleVideoparseRoute, handleVptRoute, rehydrateVideoparse, type VideoparseHost } from './videoparse-engine.js'
+import { handleWechatRoute, handleLocalfilesRoute, rehydrateWechat, rehydrateLocalfiles, type WechatHost } from './wechat-engine.js'
 import { COVER_STYLES, analyzeNovelFile, buildCoverPrompt } from './cover-engine.js'
 import { handlePromptExpertRoute, generatePromptExpert, EXPERT_TYPES } from './prompt-expert-engine.js'
 import {
@@ -360,13 +366,24 @@ export function apply(ctx: Context): void {
   // ── Restore drama tasks from disk ───────────────────────────────
   rehydrateDramas()
   rehydrateAnchors()
+  rehydrateBgVideos()
+  rehydrateMvTasks()
+  rehydrateNovelSplit()
+  rehydrateToolbox()
+  rehydrateVideoparse()
+  rehydrateWechat()
+  rehydrateLocalfiles()
 
   // ── API endpoints ────────────────────────────────────────────────
   ctx.effect(
     () => {
       const handler = async (req: IncomingMessage, res: ServerResponse) => {
         const method = req.method ?? 'GET'
-        const path = new URL(req.url ?? '/', 'http://dsh.invalid').pathname
+        const reqUrl = new URL(req.url ?? '/', 'http://dsh.invalid')
+        const path = reqUrl.pathname
+        // 引擎内部用 url.searchParams 读 ?task_id= 等查询参数，
+        // 因此这两个引擎必须收到「含 query」的路径（pathname 会丢掉它）。
+        const pathWithQuery = reqUrl.pathname + reqUrl.search
 
         // CORS headers for browser fetch
         res.setHeader('Access-Control-Allow-Origin', '*')
@@ -574,6 +591,134 @@ export function apply(ctx: Context): void {
           }
         }
 
+        // ── Background video (背景视频) API ─────────────────────────────
+        if (path.startsWith('/agnes-studio/api/bgvideo')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const bgVideoHost: BgVideoHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleBgVideoRoute(method, pathWithQuery, body, bgVideoHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── MTV 生成 API ─────────────────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/mv')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const mvHost: MvHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleMvRoute(method, path, body, mvHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── Novel split (分批拆分) API ─────────────────────────────
+        if (path.startsWith('/agnes-studio/api/novel-split')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const novelSplitHost: NovelSplitHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleNovelSplitRoute(method, path, body, novelSplitHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── De-AI (去 AI 味) API ────────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/deai')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const novelSplitHost: NovelSplitHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleDeaiRoute(method, path, body, novelSplitHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
         // ── Media files (generated videos / final cuts) ────────────────
         //   /agnes-studio/api/media/anchor/:anchorId/:filename
         //   /agnes-studio/api/media/:dramaId/:filename
@@ -594,6 +739,38 @@ export function apply(ctx: Context): void {
           }
           serveMediaFile(req, res, file)
           return
+        }
+
+        // ── Toolbox (多能宝箱) API ────────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/toolbox')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const toolboxHost: ToolboxHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleToolboxRoute(method, pathWithQuery, body, toolboxHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
         }
 
         // ── Novel cover helpers (解析 / 提示词) ────────────────────────
@@ -631,6 +808,134 @@ export function apply(ctx: Context): void {
             jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
           }
           return
+        }
+
+        // ── Video parse (视频解析) API ────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/video')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const videoparseHost: VideoparseHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleVideoparseRoute(method, path, body, videoparseHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── VPT (视频提示词) API ─────────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/vpt')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const videoparseHost: VideoparseHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleVptRoute(method, path, body, videoparseHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── Wechat (微信公众号) API ──────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/wechat')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const wechatHost: WechatHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleWechatRoute(method, path, body, wechatHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
+        }
+
+        // ── Localfiles (本地文件) API ────────────────────────────────
+        if (path.startsWith('/agnes-studio/api/localfiles')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
+            const wechatHost: WechatHost = {
+              resolveKey: async (vendor: string) => {
+                if (vendor === 'ollama') return 'ollama'
+                return resolveApiKeyForVendor(ctx, vendor)
+              },
+              call: async (vendor, endpoint, opts = {}) => {
+                const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                const url = buildUpstreamUrl(getVendorBaseUrl(vendor), endpoint)
+                const upstreamMethod = opts.method === 'GET' ? 'GET' : 'POST'
+                return vendorFetch(url, {
+                  method: upstreamMethod,
+                  headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+                  body: upstreamMethod === 'GET' ? undefined : JSON.stringify(opts.body ?? {}),
+                  timeoutMs: opts.timeoutMs || 120_000,
+                })
+              },
+            }
+            const result = await handleLocalfilesRoute(method, path, body, wechatHost)
+            if (result) {
+              jsonResponse(res, result.status, result.data)
+              return
+            }
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+            return
+          }
         }
 
         // ── ffmpeg capability probe (drives the UI's setup hints) ──────
