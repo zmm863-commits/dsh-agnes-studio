@@ -43,8 +43,14 @@ jobs:
       - name: Install dependencies
         run: npm ci || npm install --legacy-peer-deps
 
-      - name: Build (no-op for repos that commit their lib/)
-        run: npm run build --if-present
+      - name: Build artifact (prefer "bundle" when defined)
+        run: |
+          if node -e "const s=require('./package.json').scripts||{};process.exit(s.bundle?0:1)"; then
+            echo "repo defines scripts.bundle -> producing the publishable artifact (skips host-dependent smoke suites)"
+            npm run bundle
+          else
+            npm run build --if-present
+          fi
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org
 
