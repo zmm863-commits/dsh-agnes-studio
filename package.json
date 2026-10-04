@@ -1,6 +1,6 @@
 {
   "name": "dsh-agnes-studio",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "🎬 泡泡猫的影视工具 — 生图/生视频/短剧/口播/画布/封面 + 全量并入的 Oh Story（短剧、网文、视频解说、小说改游戏）。全局浮层，不堵对话框。",
   "type": "module",
   "license": "MIT",
@@ -49,8 +49,8 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6"
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6 || ^0.2.0-rc.1"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -64,5 +64,9 @@
     "bundle": "tsdown && node build.mjs",
     "test": "node scripts/smoke-host.mjs && node scripts/smoke-client.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zmm863-commits/dsh-agnes-studio.git"
   }
 }
