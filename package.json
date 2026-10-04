@@ -69,5 +69,46 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/zmm863-commits/dsh-agnes-studio.git"
+  },
+  "dshWorkshop": {
+    "schema": "omdsh-workshop-package/v1",
+    "type": "plugin",
+    "integration": {
+      "protocol": "harness-cordis",
+      "artifact": "cordis.patch.yml"
+    },
+    "install": {
+      "mode": "guided",
+      "adapter": "third-party",
+      "failurePolicy": "manual",
+      "touchesCurrentBeforeActivation": false
+    },
+    "lifecycle": {
+      "activation": "immediate",
+      "dispose": "unknown"
+    },
+    "permissions": [
+      "fs:read",
+      "fs:write",
+      "network:vendor-api",
+      "ui:inject"
+    ],
+    "compatibility": {
+      "dshVersions": [
+        "0.2.0-rc.2"
+      ]
+    },
+    "capability": {
+      "id": "agnes-studio-panel",
+      "kind": "ui",
+      "invocation": "打开 DSH Web 界面，点击侧边栏「🎬 泡泡猫的影视工具」",
+      "expected": "作为全局浮层打开且对话框仍可用；配置任一厂商 Key 后可提交一次文生图任务并看到结果"
+    },
+    "evidence": {
+      "install": null,
+      "failureIsolation": null,
+      "hotReload": null,
+      "remove": null
+    }
   }
 }
