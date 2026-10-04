@@ -1,24 +1,14 @@
-# 模板：用 GitHub Actions + npm Trusted Publishing 发布（免 token、免 2FA 验证码）
+# 用 GitHub Actions + npm Trusted Publishing 发布（免 token、免 2FA 验证码）
 #
-# 为什么需要它：2026-10-04 本机实测，npm 账号 2FA 为 auth-and-writes 时，
-# 非交互的 `npm publish` 会把版本上传成「待 2FA 确认」的暂存版本并**退出码 0**
-# （registry 上查不到），同版本重发报 E409。而 npm 已开始限制
-# 「绕过 2FA 的 token」用于**直接发布**，所以 Automation token 不是长久解。
+# 触发：推 v* 标签（本机统一发布流水线正是 push tag）
+# 前置：在 npm 包页面 Access → Trusted Publisher 登记本仓库 + workflow 文件名 publish.yml
 #
-# Trusted Publishing（OIDC）没有 token、没有验证码：GitHub Actions 用
-# id-token 换一次性凭据，npm 侧只需把「哪个仓库 + 哪个 workflow 文件」登记为可信发布者。
-#
-# 用法（每个仓库一次）：
-#   1) 把本文件复制为仓库下的 .github/workflows/publish.yml
-#   2) 到 https://www.npmjs.com/package/<包名>/access 配置 Trusted Publisher：
-#        Publisher: GitHub Actions
-#        Organization/user: zmm863-commits
-#        Repository: <仓库名>
-#        Workflow filename: publish.yml
-#        Environment: （留空）
-#   3) 之后推 v* 标签即自动发布（本流水线正是 push tag，天然衔接）
-#
-# 注意：Trusted Publishing 需要 npm CLI >= 11.5.1（见下方 Global npm 升级步骤）。
+# 三条设计取舍（都是踩坑换来的）：
+#   1) CI 里**不装依赖、不重建**。发布物是仓库里已提交的 lib/，本地流水线负责构建并提交，
+#      这样「npm 上的 tarball」与「tag 指向的提交」严格一致；CI 重建会引入未提交的差异。
+#   2) 依赖安装尽力而为 —— 官方 @deepseek-ai/* 多为 rc 预发布版，解析失败不该连带发布失败。
+#   3) 发布后**回查 registry 自证** —— 退出码 0 不等于发布成功（本机 2026-10-04 实测：
+#      2FA 暂存发布会退出码 0 但 registry 上查不到）。
 
 name: Publish to npm
 
@@ -30,7 +20,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write        # ← OIDC 必需；没有它拿不到临时发布凭据
+  id-token: write
 
 jobs:
   publish:
@@ -43,28 +33,29 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      # Trusted Publishing 要求较新的 npm CLI
-      - name: Upgrade npm
+      - name: Upgrade npm (Trusted Publishing needs a recent CLI)
         run: npm install -g npm@latest
 
-      - name: Install dependencies
-        run: npm ci || npm install --legacy-peer-deps
+      - name: Install dependencies (best effort)
+        run: npm ci || npm install --legacy-peer-deps || echo "::warning::dependency install failed, continuing"
 
-      - name: Build
-        run: npm run build --if-present
+      - name: Verify publishable files are committed
+        run: |
+          node -e "const fs=require('fs');const p=require('./package.json');const need=(p.files||[]).filter(f=>f.startsWith('lib'));if(!need.length){console.log('files does not declare lib/, skip');process.exit(0)}for(const f of need){if(!fs.existsSync(f)){console.error('missing build output: '+f);process.exit(1)}}console.log('publishable files OK: '+need.join(', '))"
 
       - name: Publish
         run: npm publish --provenance --access public
         env:
-          # 显式指向官方源，避免被镜像配置带偏
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org
 
-      # 发布后自证：registry 上真的能查到（别只信退出码）
       - name: Verify on registry
         run: |
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          sleep 5
-          code=$(curl -s -o /tmp/v.json -w '%{http_code}' "https://registry.npmjs.org/$PKG/$VER?cb=$RANDOM")
-          echo "registry 查询 $PKG@$VER → HTTP $code"
-          test "$code" = "200"
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$PKG/$VER?cb=$RANDOM")
+            echo "attempt $i: $PKG@$VER -> HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 6
+          done
+          echo "version not found on registry after 5 attempts"; exit 1
