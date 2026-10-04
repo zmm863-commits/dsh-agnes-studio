@@ -1,14 +1,15 @@
 # 用 GitHub Actions + npm Trusted Publishing 发布（免 token、免 2FA 验证码）
 #
-# 触发：推 v* 标签（本机统一发布流水线正是 push tag）
+# 触发：推 v* 标签（本机统一发布流水线正是 push tag），也可手动 dispatch
 # 前置：在 npm 包页面 Access → Trusted Publisher 登记本仓库 + workflow 文件名 publish.yml
 #
-# 三条设计取舍（都是踩坑换来的）：
-#   1) CI 里**不装依赖、不重建**。发布物是仓库里已提交的 lib/，本地流水线负责构建并提交，
-#      这样「npm 上的 tarball」与「tag 指向的提交」严格一致；CI 重建会引入未提交的差异。
+# 四条设计取舍（都是踩坑换来的）：
+#   1) CI 里**不装依赖、不重建**：发布物是仓库里已提交的 lib/，本地流水线负责构建并提交，
+#      这样「npm 上的 tarball」与「tag 指向的提交」严格一致。
 #   2) 依赖安装尽力而为 —— 官方 @deepseek-ai/* 多为 rc 预发布版，解析失败不该连带发布失败。
-#   3) 发布后**回查 registry 自证** —— 退出码 0 不等于发布成功（本机 2026-10-04 实测：
-#      2FA 暂存发布会退出码 0 但 registry 上查不到）。
+#   3) 发布后回查 registry，但**窗口要长、超时只报警** —— npm 公开读路径实测滞后约 15 分钟
+#      （2026-10-04），只等 30 秒会把成功误判成失败（这正是本工作流 v1 的毛病）。
+#   4) 顺手创建 GitHub Release（需要 contents: write），落实「每版必打 Release」。
 
 name: Publish to npm
 
@@ -19,8 +20,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write   # 创建 GitHub Release 需要
+  id-token: write   # OIDC 换取临时发布凭据，必须有
 
 jobs:
   publish:
@@ -43,19 +44,27 @@ jobs:
         run: |
           node -e "const fs=require('fs');const p=require('./package.json');const need=(p.files||[]).filter(f=>f.startsWith('lib'));if(!need.length){console.log('files does not declare lib/, skip');process.exit(0)}for(const f of need){if(!fs.existsSync(f)){console.error('missing build output: '+f);process.exit(1)}}console.log('publishable files OK: '+need.join(', '))"
 
-      - name: Publish
+      - name: Publish (trusted publishing / OIDC)
         run: npm publish --provenance --access public
         env:
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org
 
-      - name: Verify on registry
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            && echo "release $GITHUB_REF_NAME already exists" \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Verify on registry (long window, warn-only on timeout)
         run: |
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          for i in 1 2 3 4 5; do
+          for i in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$PKG/$VER?cb=$RANDOM")
             echo "attempt $i: $PKG@$VER -> HTTP $code"
-            if [ "$code" = "200" ]; then exit 0; fi
-            sleep 6
+            if [ "$code" = "200" ]; then echo "published and visible on registry"; exit 0; fi
+            sleep 30
           done
-          echo "version not found on registry after 5 attempts"; exit 1
+          echo "::warning title=registry 尚未可见::$PKG@$VER 在 6 分钟后仍未出现在公开读取路径。npm 读路径实测可滞后十几分钟；也可能该版本被暂存待批准。请到 npm 包页面与 Staged Packages 复核。"
