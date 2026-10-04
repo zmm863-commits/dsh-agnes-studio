@@ -3,13 +3,16 @@
 # 触发：推 v* 标签（本机统一发布流水线正是 push tag），也可手动 dispatch
 # 前置：在 npm 包页面 Access → Trusted Publisher 登记本仓库 + workflow 文件名 publish.yml
 #
-# 四条设计取舍（都是踩坑换来的）：
-#   1) CI 里**不装依赖、不重建**：发布物是仓库里已提交的 lib/，本地流水线负责构建并提交，
-#      这样「npm 上的 tarball」与「tag 指向的提交」严格一致。
-#   2) 依赖安装尽力而为 —— 官方 @deepseek-ai/* 多为 rc 预发布版，解析失败不该连带发布失败。
-#   3) 发布后回查 registry，但**窗口要长、超时只报警** —— npm 公开读路径实测滞后约 15 分钟
-#      （2026-10-04），只等 30 秒会把成功误判成失败（这正是本工作流 v1 的毛病）。
-#   4) 顺手创建 GitHub Release（需要 contents: write），落实「每版必打 Release」。
+# 关键事实（2026-10-04 实测）：本仓库群**全部把 lib/ 写进 .gitignore**，
+# 所以 CI 的干净检出里没有构建产物 —— **必须在 CI 里构建**，否则会发出空包。
+# （唯一的例外是 dsh-sticky-notes：它的 lib/ 是历史上强制提交的，且没有 build 脚本，
+#   `npm run build --if-present` 在它那里是空操作，直接发布已提交的 lib/。）
+#
+# 其余设计取舍：
+#   · 构建后必须自检 lib/ 存在，缺了就**红**（宁可失败，也不发空包）。
+#   · 发布后回查 registry，但窗口拉长、超时只报黄 —— npm 公开读路径实测滞后约 15 分钟，
+#     只等 30 秒会把成功误判成失败（本工作流 v1 的毛病）。
+#   · 顺手创建 GitHub Release（需要 contents: write）。
 
 name: Publish to npm
 
@@ -20,7 +23,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # 创建 GitHub Release 需要
+  contents: write   # 创建 GitHub Release
   id-token: write   # OIDC 换取临时发布凭据，必须有
 
 jobs:
@@ -37,12 +40,17 @@ jobs:
       - name: Upgrade npm (Trusted Publishing needs a recent CLI)
         run: npm install -g npm@latest
 
-      - name: Install dependencies (best effort)
-        run: npm ci || npm install --legacy-peer-deps || echo "::warning::dependency install failed, continuing"
+      - name: Install dependencies
+        run: npm ci || npm install --legacy-peer-deps
 
-      - name: Verify publishable files are committed
+      - name: Build (no-op for repos that commit their lib/)
+        run: npm run build --if-present
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+
+      - name: Verify publishable files exist
         run: |
-          node -e "const fs=require('fs');const p=require('./package.json');const need=(p.files||[]).filter(f=>f.startsWith('lib'));if(!need.length){console.log('files does not declare lib/, skip');process.exit(0)}for(const f of need){if(!fs.existsSync(f)){console.error('missing build output: '+f);process.exit(1)}}console.log('publishable files OK: '+need.join(', '))"
+          node -e "const fs=require('fs');const p=require('./package.json');const need=(p.files||[]).filter(f=>f.startsWith('lib'));if(!need.length){console.log('files does not declare lib/, skip');process.exit(0)}for(const f of need){if(!fs.existsSync(f)){console.error('missing build output: '+f+' -- build did not produce it');process.exit(1)}}console.log('publishable files OK: '+need.join(', '))"
 
       - name: Publish (trusted publishing / OIDC)
         run: npm publish --provenance --access public
