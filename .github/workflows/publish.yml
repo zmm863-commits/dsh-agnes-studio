@@ -50,7 +50,17 @@ jobs:
 
       - name: Verify publishable files exist
         run: |
-          node -e "const fs=require('fs');const p=require('./package.json');const need=(p.files||[]).filter(f=>f.startsWith('lib'));if(!need.length){console.log('files does not declare lib/, skip');process.exit(0)}for(const f of need){if(!fs.existsSync(f)){console.error('missing build output: '+f+' -- build did not produce it');process.exit(1)}}console.log('publishable files OK: '+need.join(', '))"
+          node -e "
+            const fs=require('fs'),p=require('./package.json');
+            const need=(p.files||[]).filter(f=>f.startsWith('lib'));
+            if(!need.length){console.log('files 未声明 lib，跳过');process.exit(0)}
+            for(const f of need){
+              // 注意：files 里可能是 glob（如 lib/*.d.ts），字面 existsSync 一定会失败 —— 取 '*' 之前的前缀探测
+              const probe=f.includes('*')?f.slice(0,f.indexOf('*')):f;
+              if(!fs.existsSync(probe)){console.error('❌ 缺少构建产物 '+f+'（探测路径 '+probe+'）');process.exit(1)}
+            }
+            console.log('✅ 发布物自检通过: '+need.join(', '));
+          "
 
       - name: Publish (trusted publishing / OIDC)
         run: npm publish --provenance --access public
