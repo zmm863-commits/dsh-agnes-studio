@@ -105,7 +105,7 @@ vendor/oh-story/    ← 上游 ~23MB 原样存放（index.js/client.js/四套技
 |---|---|---|
 | **ffmpeg + ffprobe** | 视频拼接、字幕烧录、音画合成 | 面板顶部提示安装方法；可设 `AGNES_FFMPEG` 指定路径 |
 | **中文字体** | 烧录中文字幕 | 明确报错（不会静默输出豆腐块）；可设 `AGNES_SUBTITLE_FONT` |
-| **MIMO_API_KEY** | 口播 TTS 配音 | 口播页提示配置（`mimo-api-key` 凭据或环境变量） |
+| **MIMO_API_KEY** | 口播 TTS 配音 | 口播页提示配置（凭据或环境变量，名字均为 `MIMO_API_KEY`） |
 
 安装 ffmpeg：
 ```bash
@@ -141,8 +141,8 @@ npm install /root/软件/dsh-agnes-studio
 1. 打开 <https://platform.agnes-ai.cn> 注册 / 登录（免费）
 2. 在控制台「API Keys」创建密钥，复制 `sk-` 开头的那串
 3. 填到本机（任选一种）：
-   - 在 DSH 设置 → 模型 → 凭据 中新增 `agnes-api-key`
-   - 或在本机 `/dsh/.env` 写入 `AGNES_API_KEY=sk-...`
+   - 在 DSH 设置里的模型页编辑 Agnes，填入 API 密钥（保存为凭据 `AGNES_API_KEY`）
+   - 或在本机 `~/.dsh/.env` 写入 `AGNES_API_KEY=sk-...`，然后重启 DSH
 
 面板首屏会显示同样的指引；Key 只由宿主进程读取，浏览器不会接触。
 

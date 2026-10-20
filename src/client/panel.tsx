@@ -99,7 +99,6 @@ type TabType =
 /** True when an error message means "no/invalid API key" rather than a build error. */
 function looksLikeKeyProblem(message: string): boolean {
   return message.includes('未配置')
-    || message.includes('agnes-api-key')
     || /\b401\b/.test(message)
     || /invalid api key|api key is invalid|unauthorized|no api key/i.test(message)
 }

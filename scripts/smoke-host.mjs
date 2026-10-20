@@ -95,6 +95,8 @@ if (typeof mod.buildUpstreamUrl === 'function') {
 const routes = []
 const sections = []
 const disposers = []
+/** Every ref the host asks the credentials service for. */
+const requestedRefs = []
 const ctx = {
   webServer: {
     register(route) {
@@ -112,7 +114,12 @@ const ctx = {
       return d
     },
   },
-  credentials: { resolve: async () => 'test-key' },
+  credentials: {
+    resolve: async (ref) => {
+      requestedRefs.push(ref)
+      return { value: 'test-key', source: 'file' }
+    },
+  },
   effect(fn) {
     const dispose = fn()
     return () => { if (typeof dispose === 'function') dispose() }
@@ -173,17 +180,24 @@ if (typeof route?.handler === 'function') {
     check('status never echoes the key', !String(res1.body ?? '').includes('test-key'))
     check('status carries the registration URL',
       String(payload.platformUrl ?? '').startsWith('https://platform.agnes-ai.cn'), String(payload.platformUrl))
+    // The credentials service only accepts env-style refs (/^[A-Za-z_][A-Za-z0-9_]*$/)
+    // and the settings page writes exactly this name, so the host must ask for it.
+    check('status asks the credentials service for AGNES_API_KEY',
+      requestedRefs.includes('AGNES_API_KEY'), JSON.stringify(requestedRefs))
+    check('status asks for no kebab-case ref',
+      !requestedRefs.some(ref => ref.includes('-')), JSON.stringify(requestedRefs))
   } catch (error) {
     check('GET /status answers 200', false, error.message)
   }
 
   // A host without any key (no credentials entry, no env) reports false.
+  // The real service resolves an unset ref to `undefined` rather than throwing.
   const savedEnv = process.env.AGNES_API_KEY
   delete process.env.AGNES_API_KEY
   const routes2 = []
   const ctx2 = {
     ...ctx,
-    credentials: { resolve: async () => { throw new Error('no key') } },
+    credentials: { resolve: async () => undefined },
     webServer: { register(r) { routes2.push(r); return () => {} } },
   }
   mod.apply(ctx2)

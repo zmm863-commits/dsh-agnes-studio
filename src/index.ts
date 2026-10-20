@@ -50,7 +50,7 @@ const AGNES_STUDIO_GUIDANCE =
   '代理端点自动按模型名路由到对应厂商 API。' +
   '限制：面板为全局浮层，不影响对话框；API Key 由宿主进程读取，浏览器不接触。' +
   `首次使用需要对应厂商的 API Key：Agnes 在 ${AGNES_PLATFORM_URL} 注册；` +
-  '其他厂商各自的 Key 写入 .env（如 DEEPSEEK_API_KEY=sk-...）或 DSH 凭据（如 deepseek-api-key）。' +
+  '其他厂商各自的 Key 写入 .env（如 DEEPSEEK_API_KEY=sk-...）或在 DSH 设置里的模型页填入（同一名字 DEEPSEEK_API_KEY）。' +
   'Ollama 无需 Key，需本地运行 11434 端口。' +
   '本插件同时附带 Oh Story 的创作技能与工具（原 @oh-story/dsh 不再是独立插件行），共 37 个技能——' +
   '短剧 11 个（short-drama 及其 develop/write/assets/image-prompts/storyboard/video-prompts/produce/edit/review/novel-analyze）、' +
@@ -108,24 +108,34 @@ export function buildUpstreamUrl(baseUrl: string, endpoint: string): string {
 
 /**
  * Resolve the API key for a specific vendor.
- * Priority: vendor-specific credential → vendor-specific env → Agnes fallback → error.
+ * Priority: vendor-specific credential, then vendor-specific env, then error.
+ *
+ * The credential reference and the environment variable share one name
+ * (`AGNES_API_KEY`, `DEEPSEEK_API_KEY`, …) because that is the name the DSH
+ * settings page writes: `deriveKeyRef()` in dsh-client-ui-settings-models
+ * upper-cases the route and appends `_API_KEY`. A kebab-case name such as
+ * `agnes-api-key` cannot be stored at all — the credentials service validates
+ * every ref against `/^[A-Za-z_][A-Za-z0-9_]*$/`.
  */
 async function resolveApiKeyForVendor(ctx: Context, vendor: string): Promise<string> {
   // Ollama doesn't need a key
   if (vendor === 'ollama') return 'ollama'
 
-  // 1. Try vendor-specific credential
-  const credentialKey = `${vendor}-api-key`
+  const envKey = `${vendor.toUpperCase()}_API_KEY`
+
+  // 1. Try the credential store. `resolve()` yields `{ value, source }` — the
+  //    source says which layer answered (file / env / project-env / user-env),
+  //    and an unset ref yields `undefined` rather than throwing.
   try {
-    const resolved = await ctx.credentials.resolve(credentialKey)
-    if (resolved && typeof resolved === 'string' && resolved.length > 0) {
-      return resolved
+    const hit = await ctx.credentials.resolve(envKey)
+    if (hit !== undefined && typeof hit.value === 'string' && hit.value.length > 0) {
+      return hit.value
     }
   } catch { /* credentials service may not have the key */ }
 
-  // 2. Try vendor-specific env variable
-  const envKey = `${vendor.toUpperCase()}_API_KEY`
-  if (process.env[envKey]) return process.env[envKey]!
+  // 2. Try the process environment (`.env` is materialized here by loadLayeredEnv)
+  const ambient = process.env[envKey]
+  if (ambient !== undefined && ambient.length > 0) return ambient
 
   // NOTE: there is deliberately NO cross-vendor fallback to the Agnes key.
   // Each vendor has its own endpoint, so sending the Agnes key to DeepSeek/Qwen
@@ -133,13 +143,17 @@ async function resolveApiKeyForVendor(ctx: Context, vendor: string): Promise<str
   // the exact key name the user must configure.
 
   throw new Error(
-    `${vendor} API Key 未配置：请在本机 .env 写入 ${envKey}=... 或在 DSH 凭据(credentials)中新增 ${credentialKey}。` +
+    `${vendor} API Key 未配置：请在 DSH 设置里的模型页编辑 ${vendor} 并填入 API 密钥，或在本机 .env 写入 ${envKey}=...。` +
     (vendor === 'agnes' ? ` Agnes Key 也可在 ${AGNES_PLATFORM_URL} 注册获取。` : ''),
   )
 }
 
 /**
  * Get key configuration status for all vendors (never exposes actual keys).
+ *
+ * `source` reports the layer that answered, so the panel can distinguish a
+ * key saved in DSH settings (`credentials`) from one exported by the shell or
+ * a `.env` file (`env`).
  */
 async function getKeyStatus(ctx: Context): Promise<Record<string, { configured: boolean; source: string | null; envKey: string; credentialKey: string }>> {
   const vendors = ['agnes', 'deepseek', 'qwen', 'doubao', 'minimax', 'ollama']
@@ -150,23 +164,26 @@ async function getKeyStatus(ctx: Context): Promise<Record<string, { configured: 
       status[vendor] = { configured: true, source: 'built-in', envKey: '', credentialKey: '' }
       continue
     }
-    // Check vendor-specific credential
+    const envKey = `${vendor.toUpperCase()}_API_KEY`
+    // The credential ref and the env name are the same string; see
+    // resolveApiKeyForVendor for why.
     try {
-      const resolved = await ctx.credentials.resolve(`${vendor}-api-key`)
-      if (resolved && typeof resolved === 'string' && resolved.length > 0) {
-        status[vendor] = { configured: true, source: 'credentials', envKey: `${vendor.toUpperCase()}_API_KEY`, credentialKey: `${vendor}-api-key` }
+      const hit = await ctx.credentials.resolve(envKey)
+      if (hit !== undefined && typeof hit.value === 'string' && hit.value.length > 0) {
+        status[vendor] = { configured: true, source: 'credentials', envKey, credentialKey: envKey }
         continue
       }
     } catch { /* ignore */ }
     // Check vendor-specific env
-    if (process.env[`${vendor.toUpperCase()}_API_KEY`]) {
-      status[vendor] = { configured: true, source: 'env', envKey: `${vendor.toUpperCase()}_API_KEY`, credentialKey: `${vendor}-api-key` }
+    const ambient = process.env[envKey]
+    if (ambient !== undefined && ambient.length > 0) {
+      status[vendor] = { configured: true, source: 'env', envKey, credentialKey: envKey }
       continue
     }
     // A vendor is configured ONLY by its own credential/env. Having an Agnes
     // key does not make DeepSeek usable — report it as unconfigured so the
     // panel tells the truth.
-    status[vendor] = { configured: false, source: null, envKey: `${vendor.toUpperCase()}_API_KEY`, credentialKey: `${vendor}-api-key` }
+    status[vendor] = { configured: false, source: null, envKey, credentialKey: envKey }
   }
   return status
 }
@@ -535,13 +552,16 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
-              resolveCredential: async (name, envName) => {
+              resolveCredential: async (_name, envName) => {
+                // `_name` is the kebab-case label the host interface carries;
+                // `envName` is the ref the credentials service actually accepts.
                 try {
-                  const v = await ctx.credentials.resolve(name)
-                  if (v && typeof v === 'string' && v.length > 0) return v
+                  const hit = await ctx.credentials.resolve(envName)
+                  if (hit !== undefined && typeof hit.value === 'string' && hit.value.length > 0) return hit.value
                 } catch { /* fall through */ }
-                if (process.env[envName]) return process.env[envName]!
-                throw new Error(`未配置 ${envName}（凭据 ${name}）。`)
+                const ambient = process.env[envName]
+                if (ambient !== undefined && ambient.length > 0) return ambient
+                throw new Error(`未配置 ${envName}：请在 DSH 设置里的模型页填入，或在本机 .env 写入 ${envName}=...。`)
               },
             }
             const result = await handleDramaRoute(method, path, body, dramaHost)
@@ -562,11 +582,12 @@ export function apply(ctx: Context): void {
             const anchorHost: AnchorHost = {
               resolveTtsKey: async () => {
                 try {
-                  const v = await ctx.credentials.resolve('mimo-api-key')
-                  if (v && typeof v === 'string' && v.length > 0) return v
+                  const hit = await ctx.credentials.resolve('MIMO_API_KEY')
+                  if (hit !== undefined && typeof hit.value === 'string' && hit.value.length > 0) return hit.value
                 } catch { /* fall through */ }
-                if (process.env.MIMO_API_KEY) return process.env.MIMO_API_KEY
-                throw new Error('未配置 TTS 配音 Key：请在本机 .env 写入 MIMO_API_KEY=... 或在 DSH 凭据中新增 mimo-api-key。')
+                const ambient = process.env.MIMO_API_KEY
+                if (ambient !== undefined && ambient.length > 0) return ambient
+                throw new Error('未配置 TTS 配音 Key：请在 DSH 设置里的模型页填入 MIMO_API_KEY，或在本机 .env 写入 MIMO_API_KEY=...。')
               },
               call: async (vendor, endpoint, opts = {}) => {
                 const apiKey = await resolveApiKeyForVendor(ctx, vendor)

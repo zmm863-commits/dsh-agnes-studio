@@ -405,7 +405,11 @@ if (entry !== null) {
   check('no legacy "Agnes 创意工作站" UI title left in the client',
     !source.includes('Agnes 创意工作站'))
   check('first-use key guide ships with the panel',
-    source.includes('platform.agnes-ai.cn') && source.includes('agnes-api-key'))
+    source.includes('platform.agnes-ai.cn') && source.includes('AGNES_API_KEY'))
+  // The guide must name the ref the host actually resolves; a kebab-case name
+  // cannot be stored by the credentials service at all.
+  check('key guide names no kebab-case credential',
+    !source.includes('agnes-api-key'))
   // The seat owns the ONLY scrim now (the whole overlay lives in the slot tree),
   // so what must not come back is a second, imperatively created backdrop.
   check('no imperative scrim left behind (the seat owns the only backdrop)',

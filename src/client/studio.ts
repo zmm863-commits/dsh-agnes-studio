@@ -341,7 +341,7 @@ export async function fetchKeyStatus(): Promise<{
     return { configured: true, source: null }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    if (message.includes('未配置') || message.includes('agnes-api-key'))
+    if (message.includes('未配置'))
       return { configured: false, source: null }
     if (/invalid api key|api key is invalid|unauthorized|no api key/i.test(message))
       return { configured: false, source: null }
