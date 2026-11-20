@@ -1,24 +1,18 @@
-# 模板：用 GitHub Actions + npm Trusted Publishing 发布（免 token、免 2FA 验证码）
+# 用 GitHub Actions + npm Trusted Publishing 发布（免 token、免 2FA 验证码）
 #
-# 为什么需要它：2026-10-04 本机实测，npm 账号 2FA 为 auth-and-writes 时，
-# 非交互的 `npm publish` 会把版本上传成「待 2FA 确认」的暂存版本并**退出码 0**
-# （registry 上查不到），同版本重发报 E409。而 npm 已开始限制
-# 「绕过 2FA 的 token」用于**直接发布**，所以 Automation token 不是长久解。
+# 触发：推 v* 标签（本机统一发布流水线正是 push tag），也可手动 dispatch
+# 前置：在 npm 包页面 Access → Trusted Publisher 登记本仓库 + workflow 文件名 publish.yml
 #
-# Trusted Publishing（OIDC）没有 token、没有验证码：GitHub Actions 用
-# id-token 换一次性凭据，npm 侧只需把「哪个仓库 + 哪个 workflow 文件」登记为可信发布者。
+# 关键事实（2026-10-04 实测）：本仓库群**全部把 lib/ 写进 .gitignore**，
+# 所以 CI 的干净检出里没有构建产物 —— **必须在 CI 里构建**，否则会发出空包。
+# （唯一的例外是 dsh-sticky-notes：它的 lib/ 是历史上强制提交的，且没有 build 脚本，
+#   `npm run build --if-present` 在它那里是空操作，直接发布已提交的 lib/。）
 #
-# 用法（每个仓库一次）：
-#   1) 把本文件复制为仓库下的 .github/workflows/publish.yml
-#   2) 到 https://www.npmjs.com/package/<包名>/access 配置 Trusted Publisher：
-#        Publisher: GitHub Actions
-#        Organization/user: zmm863-commits
-#        Repository: <仓库名>
-#        Workflow filename: publish.yml
-#        Environment: （留空）
-#   3) 之后推 v* 标签即自动发布（本流水线正是 push tag，天然衔接）
-#
-# 注意：Trusted Publishing 需要 npm CLI >= 11.5.1（见下方 Global npm 升级步骤）。
+# 其余设计取舍：
+#   · 构建后必须自检 lib/ 存在，缺了就**红**（宁可失败，也不发空包）。
+#   · 发布后回查 registry，但窗口拉长、超时只报黄 —— npm 公开读路径实测滞后约 15 分钟，
+#     只等 30 秒会把成功误判成失败（本工作流 v1 的毛病）。
+#   · 顺手创建 GitHub Release（需要 contents: write）。
 
 name: Publish to npm
 
@@ -29,8 +23,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  id-token: write        # ← OIDC 必需；没有它拿不到临时发布凭据
+  contents: write   # 创建 GitHub Release
+  id-token: write   # OIDC 换取临时发布凭据，必须有
 
 jobs:
   publish:
@@ -43,28 +37,58 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      # Trusted Publishing 要求较新的 npm CLI
-      - name: Upgrade npm
+      - name: Upgrade npm (Trusted Publishing needs a recent CLI)
         run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci || npm install --legacy-peer-deps
 
-      - name: Build
-        run: npm run build --if-present
-
-      - name: Publish
-        run: npm publish --provenance --access public
+      - name: Build artifact (prefer "bundle" when defined)
+        run: |
+          if node -e "const s=require('./package.json').scripts||{};process.exit(s.bundle?0:1)"; then
+            echo "repo defines scripts.bundle -> producing the publishable artifact (skips host-dependent smoke suites)"
+            npm run bundle
+          else
+            npm run build --if-present
+          fi
         env:
-          # 显式指向官方源，避免被镜像配置带偏
           NPM_CONFIG_REGISTRY: https://registry.npmjs.org
 
-      # 发布后自证：registry 上真的能查到（别只信退出码）
-      - name: Verify on registry
+      - name: Verify publishable files exist
+        run: |
+          node -e "
+            const fs=require('fs'),p=require('./package.json');
+            const need=(p.files||[]).filter(f=>f.startsWith('lib'));
+            if(!need.length){console.log('files 未声明 lib，跳过');process.exit(0)}
+            for(const f of need){
+              // 注意：files 里可能是 glob（如 lib/*.d.ts），字面 existsSync 一定会失败 —— 取 '*' 之前的前缀探测
+              const probe=f.includes('*')?f.slice(0,f.indexOf('*')):f;
+              if(!fs.existsSync(probe)){console.error('❌ 缺少构建产物 '+f+'（探测路径 '+probe+'）');process.exit(1)}
+            }
+            console.log('✅ 发布物自检通过: '+need.join(', '));
+          "
+
+      - name: Publish (trusted publishing / OIDC)
+        run: npm publish --provenance --access public
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            && echo "release $GITHUB_REF_NAME already exists" \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Verify on registry (long window, warn-only on timeout)
         run: |
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          sleep 5
-          code=$(curl -s -o /tmp/v.json -w '%{http_code}' "https://registry.npmjs.org/$PKG/$VER?cb=$RANDOM")
-          echo "registry 查询 $PKG@$VER → HTTP $code"
-          test "$code" = "200"
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$PKG/$VER?cb=$RANDOM")
+            echo "attempt $i: $PKG@$VER -> HTTP $code"
+            if [ "$code" = "200" ]; then echo "published and visible on registry"; exit 0; fi
+            sleep 30
+          done
+          echo "::warning title=registry 尚未可见::$PKG@$VER 在 6 分钟后仍未出现在公开读取路径。npm 读路径实测可滞后十几分钟；也可能该版本被暂存待批准。请到 npm 包页面与 Staged Packages 复核。"
