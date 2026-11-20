@@ -129,12 +129,14 @@ brew install ffmpeg && brew install --cask font-noto-sans-cjk-sc
 
 ```bash
 cd /dsh/profiles/web
-npm install /root/软件/dsh-agnes-studio
+npm install dsh-agnes-studio
 # 编辑 package.json 的 dsh.profile.bundles 添加 "dsh-agnes-studio"
-# 编辑 package.json 的 dependencies 添加 "dsh-agnes-studio": "file:/root/软件/dsh-agnes-studio"
+# 编辑 package.json 的 dependencies 添加 "dsh-agnes-studio": "^0.7.1"
 # 若 profile 里还有 "@oh-story/dsh"：从 bundles 和 dependencies 中移除（能力已并入），否则技能会重复注册
 # 重启 DSH 容器
 ```
+
+也可以从源码目录安装：`npm install /path/to/dsh-agnes-studio`（换成你自己的克隆路径）。
 
 ## 首次使用：获取 Agnes API Key
 
