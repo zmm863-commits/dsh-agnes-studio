@@ -141,10 +141,26 @@ npm install /root/软件/dsh-agnes-studio
 1. 打开 <https://platform.agnes-ai.cn> 注册 / 登录（免费）
 2. 在控制台「API Keys」创建密钥，复制 `sk-` 开头的那串
 3. 填到本机（任选一种）：
-   - 在 DSH 设置 → 模型 → 凭据 中新增 `agnes-api-key`
-   - 或在本机 `/dsh/.env` 写入 `AGNES_API_KEY=sk-...`
+   - 在 DSH 主目录的 `.env` 写入 `AGNES_API_KEY=sk-...`（主目录即 `echo $DSH_HOME`，默认 `~/.dsh`）
+   - 或设为同名系统环境变量 `AGNES_API_KEY`（已存在的环境变量优先，`.env` 不会覆盖它）
+
+> 不要去「设置 → 模型 → 凭据」里新增 `agnes-api-key`：凭据 ref 名不允许连字符，这个名字存不进去。Key 只在 DSH 启动时读取一次，改完需完全重启 DSH 进程。
 
 面板首屏会显示同样的指引；Key 只由宿主进程读取，浏览器不会接触。
+
+## 故障排查：面板读不到 Key / 生图失败
+
+把 [`docs/agnes-key-troubleshooting.md`](docs/agnes-key-troubleshooting.md) 里的整段提示词发给 DSH 助手，它会自行检查 `.env`、调用 `/agnes-studio/api/status` 确认状态、写入 Key，并告诉你何时重启。
+
+典型原因：
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 面板显示未配置，但 `.env` 里已经写了 | 未重启 DSH，或变量名不是 `AGNES_API_KEY` | 完全重启；核对变量名一字不差 |
+| 同上，且改 `.env` 后仍无效 | `.env` 不在 `$DSH_HOME` 或启动目录，或系统里已有同名旧变量 | 放到 `$DSH_HOME/.env`；清除更高优先级的同名变量 |
+| 401 | Key 无效或过期 | 到控制台重新创建 |
+| 404 / 请求打到了错误域名 | 配置的是中转 / 自建端点（插件端点写死为官方地址） | 改用官方端点，或等插件支持自定义端点 |
+| 模型下拉里没有想用的模型 | 插件模型表是静态的，不读取 DSH 的 provider 配置 | 等插件更新 |
 
 ## 使用
 
