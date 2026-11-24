@@ -4,6 +4,7 @@
  * 上传图片或视频 → 关键帧逆向 → 输出可直接用于其它生成模型的提示词。
  * 后端：`/agnes-studio/api/vpt/image`、`/agnes-studio/api/vpt/video`。
  */
+import { iconSvg } from './icons.ts'
 import { createElement, useEffect, useRef, useState } from './react-shim.ts'
 
 const TARGETS: Array<{ id: string; label: string }> = [
@@ -121,7 +122,7 @@ export function VptPanel(props: VptPanelProps): unknown {
       createElement('p', { className: 'agnes-vpt-lead' },
         '上传图片或视频，逐帧逆向出可直接用于其它生成模型的提示词。全程走本机代理，文件不离开你的机器。'),
 
-      createElement('div', { className: 'agnes-vpt-row' }, seg('image', '🖼 图片'), seg('video', '🎬 视频')),
+      createElement('div', { className: 'agnes-vpt-row' }, seg('image', '图片'), seg('video', '视频')),
 
       createElement('input', {
         ref: inputRef,
@@ -140,7 +141,10 @@ export function VptPanel(props: VptPanelProps): unknown {
           : dataUrl && mode === 'video'
             ? createElement('video', { src: dataUrl, className: 'agnes-vpt-thumb', muted: true })
             : createElement('div', { className: 'agnes-vpt-drop-hint' },
-                createElement('div', { className: 'agnes-vpt-drop-icon' }, mode === 'image' ? '🖼' : '🎬'),
+                createElement('div', {
+                  className: 'agnes-vpt-drop-icon',
+                  dangerouslySetInnerHTML: { __html: iconSvg(mode === 'image' ? 'image' : 'video', 26) },
+                }),
                 createElement('div', null, `点击选择${mode === 'image' ? '图片' : '视频'}`),
                 createElement('div', { className: 'agnes-vpt-drop-sub' },
                   mode === 'image' ? 'PNG / JPG / WebP / GIF，≤10MB' : 'MP4 / WebM / MOV，≤40MB'),

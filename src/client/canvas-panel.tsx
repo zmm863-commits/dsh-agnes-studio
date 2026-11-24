@@ -306,7 +306,7 @@ export function CanvasPanel({ textModels, imageModels, videoModels }: Props) {
                     : createElement('video', { src: node.url, controls: true, className: 'agc-media' }))
                 : createElement('div', { className: 'agc-node-empty' },
                     node.status === 'running'
-                      ? createElement('span', null, '⏳ 生成中…')
+                      ? createElement('span', null, '生成中…')
                       : createElement('span', null, meta.hint)),
               node.kind !== 'text'
                 ? createElement('textarea', {
@@ -329,7 +329,7 @@ export function CanvasPanel({ textModels, imageModels, videoModels }: Props) {
           className: 'agnes-btn agnes-btn-primary agnes-btn-sm',
           disabled: busy || node.status === 'running',
           onClick: (e: any) => { e.stopPropagation(); generate(node) },
-        }, node.status === 'running' ? '生成中…' : (node.kind === 'text' ? '✨ AI 续写' : (node.kind === 'image' ? '✨ 生成图' : '🎬 生成视频'))),
+        }, node.status === 'running' ? '生成中…' : (node.kind === 'text' ? 'AI 续写' : (node.kind === 'image' ? '生成图' : '生成视频'))),
       ),
 
       // 输入端口（左）

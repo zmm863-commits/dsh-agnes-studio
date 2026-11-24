@@ -114,13 +114,13 @@ export function SettingsTab(props: SettingsTabProps): unknown {
 
   return createElement('div', { className: 'agnes-settings' },
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🔑 API Key 状态'),
+      createElement('div', { className: 'agnes-setting-group-title' }, 'API Key 状态'),
       ...Object.entries(vendorStatus).map(([vendor, status]) =>
         createElement('div', { key: vendor, className: 'agnes-setting-row' },
           createElement('span', { className: 'agnes-setting-label' }, vendor.charAt(0).toUpperCase() + vendor.slice(1)),
           createElement('span', {
             className: status.configured ? 'agnes-badge agnes-badge-free' : 'agnes-badge agnes-badge-error',
-          }, status.configured ? '✅ 已配置' : '❌ 未配置'),
+          }, status.configured ? '已配置' : '未配置'),
         ),
       ),
       Object.keys(vendorStatus).length === 0
@@ -133,11 +133,11 @@ export function SettingsTab(props: SettingsTabProps): unknown {
         style: { marginTop: '8px' },
         disabled: checkingKey,
         onClick: onRecheckKey,
-      }, checkingKey ? '⏳ 检测中…' : '🔄 重新检测 Key'),
+      }, checkingKey ? '检测中…' : '重新检测 Key'),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '📖 配置指南'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '配置指南'),
       createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6', marginBottom: '8px' } },
         '如需使用付费模型，请在对应厂商平台获取 API Key 并配置到 DSH。',
       ),
@@ -147,25 +147,25 @@ export function SettingsTab(props: SettingsTabProps): unknown {
           href: AGNES_PLATFORM_URL,
           target: '_blank',
           rel: 'noopener noreferrer',
-        }, '🌐 Agnes 平台'),
+        }, 'Agnes 平台'),
         createElement('a', {
           className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
           href: AGNES_DOCS_URL,
           target: '_blank',
           rel: 'noopener noreferrer',
-        }, '📖 文档'),
+        }, '文档'),
       ),
       createElement('div', { style: { marginTop: '8px' } },
         createElement('button', {
           className: 'agnes-btn agnes-btn-sm agnes-btn-ghost agnes-btn-full',
           onClick: onToggleGuide,
-        }, guideOpen ? '收起 Key 指引' : '🔑 首次使用？如何获取 / 配置 Key'),
+        }, guideOpen ? '收起 Key 指引' : '首次使用？如何获取 / 配置 Key'),
       ),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
       createElement('div', { className: 'agnes-setting-group-title' },
-        `📊 可用模型（共 ${nAll + customModels.length} 个）`),
+        `可用模型（共 ${nAll + customModels.length} 个）`),
       createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
         `文本 ${nText} 个 · 图像 ${nImage} 个 · 视频 ${nVideo} 个` +
         (customModels.length > 0 ? ` · 自定义 ${customModels.length} 个` : ''),
@@ -174,18 +174,18 @@ export function SettingsTab(props: SettingsTabProps): unknown {
         '「内置」= Agnes 系列，API Key 已随插件提供，开箱即用（2.5 与 3.0 同属 Agnes 平台，共用一个 Key）；「需 Key」= 需在对应厂商申请后配置到 DSH。计费另见「免费 / 按量」。',
       ),
 
-      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '8px 0 6px' } }, `📝 文本模型（${nText}）`),
+      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '8px 0 6px' } }, `文本模型（${nText}）`),
       ...modelRows(textModels),
 
-      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '14px 0 6px' } }, `🎨 图像模型（${nImage}）`),
+      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '14px 0 6px' } }, `图像模型（${nImage}）`),
       ...modelRows(imageModels),
 
-      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '14px 0 6px' } }, `🎬 视频模型（${nVideo}）`),
+      createElement('div', { style: { fontWeight: 600, fontSize: '12px', margin: '14px 0 6px' } }, `视频模型（${nVideo}）`),
       ...modelRows(videoModels),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, `🔧 自定义模型（${customModels.length}）`),
+      createElement('div', { className: 'agnes-setting-group-title' }, `自定义模型（${customModels.length}）`),
       createElement('button', {
         className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
         style: { marginBottom: '8px' },
@@ -212,16 +212,16 @@ export function SettingsTab(props: SettingsTabProps): unknown {
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, 'ℹ️ 关于'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '关于'),
       createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
         createElement('div', null, `版本: ${PRODUCT_NAME}`),
-        createElement('div', null, '🎨 支持多家厂商图片/视频生成'),
-        createElement('div', null, '📐 每个模型有独立的尺寸白名单'),
-        createElement('div', null, '🔧 可添加自定义 API 兼容模型'),
+        createElement('div', null, '支持多家厂商图片/视频生成'),
+        createElement('div', null, '每个模型有独立的尺寸白名单'),
+        createElement('div', null, '可添加自定义 API 兼容模型'),
         createElement('div', { style: { marginTop: '6px' } },
-          keyStatus === 'ready' ? '🔑 Agnes API Key：已配置'
-            : keyStatus === 'missing' ? '🔑 Agnes API Key：未配置'
-              : '🔑 Agnes API Key：未检测',
+          keyStatus === 'ready' ? 'Agnes API Key：已配置'
+            : keyStatus === 'missing' ? 'Agnes API Key：未配置'
+              : 'Agnes API Key：未检测',
         ),
       ),
     ),

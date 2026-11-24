@@ -48,7 +48,7 @@ export function WechatPanel() {
   return createElement('div', { className: 'wechat-panel' },
     // 标题
     createElement('div', { className: 'wechat-header' },
-      createElement('h3', null, '📱 微信公众号 + 本地文件'),
+      createElement('h3', null, '微信公众号 + 本地文件'),
       createElement('p', { className: 'wechat-desc' }, '公众号文章生成 + 本地文件管理'),
     ),
 
@@ -57,11 +57,11 @@ export function WechatPanel() {
       createElement('button', {
         className: `wechat-tab ${activeTab === 'wechat' ? 'active' : ''}`,
         onClick: () => setActiveTab('wechat'),
-      }, '📱 微信公众号'),
+      }, '微信公众号'),
       createElement('button', {
         className: `wechat-tab ${activeTab === 'localfiles' ? 'active' : ''}`,
         onClick: () => setActiveTab('localfiles'),
-      }, '📁 本地文件'),
+      }, '本地文件'),
     ),
 
     // 内容
@@ -161,7 +161,7 @@ function WechatArticlePanel() {
 
     // 公众号凭据配置 —— 此前整块缺失，没有任何输入 AppID 的地方
     createElement('div', { className: 'wechat-section' },
-      createElement('h4', null, '⚙ 公众号配置'),
+      createElement('h4', null, '公众号配置'),
       createElement('p', { className: 'wechat-desc' },
         '填写微信公众平台的 AppID / AppSecret（保存在本机插件数据目录，AppSecret 不回传明文）。'),
       createElement('div', { className: 'wechat-form' },
@@ -188,10 +188,10 @@ function WechatArticlePanel() {
             className: 'wechat-btn wechat-btn-primary',
             onClick: handleSaveConfig,
             disabled: savingConfig || (!appid.trim() && !secret.trim()),
-          }, savingConfig ? '⏳ 保存中…' : '💾 保存配置'),
+          }, savingConfig ? '保存中…' : '保存配置'),
           hasSecret
-            ? createElement('span', { className: 'wechat-badge wechat-badge-published' }, '✅ 凭据已就绪')
-            : createElement('span', { className: 'wechat-badge wechat-badge-draft' }, '⚠ 尚未配置'),
+            ? createElement('span', { className: 'wechat-badge wechat-badge-published' }, '凭据已就绪')
+            : createElement('span', { className: 'wechat-badge wechat-badge-draft' }, '尚未配置'),
           configSaved && createElement('span', { className: 'wechat-badge wechat-badge-published' }, '已保存'),
         ),
       ),
@@ -222,7 +222,7 @@ function WechatArticlePanel() {
           className: 'wechat-btn wechat-btn-primary',
           onClick: handleGenerate,
           disabled: loading || !title.trim() || !content.trim(),
-        }, loading ? '⏳ 生成中...' : '📱 生成文章'),
+        }, loading ? '生成中...' : '生成文章'),
       ),
     ),
 
@@ -244,7 +244,7 @@ function WechatArticlePanel() {
                   article.status === 'draft' && createElement('button', {
                     className: 'wechat-btn wechat-btn-small',
                     onClick: () => handlePublish(article.id),
-                  }, '📤 发布'),
+                  }, '发布'),
                 ),
               )
             ),

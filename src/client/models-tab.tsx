@@ -50,17 +50,17 @@ export function ModelsTab(props: ModelsTabProps): unknown {
 
   return createElement('div', { className: 'agnes-settings' },
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🎨 图片模型'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '图片模型'),
       ...rows(imageModels),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🎬 视频模型'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '视频模型'),
       ...rows(videoModels),
     ),
 
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🔧 自定义模型'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '自定义模型'),
       createElement('button', {
         className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
         style: { marginBottom: '8px' },

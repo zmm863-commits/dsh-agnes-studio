@@ -26,11 +26,11 @@ export const DURATION_OPTIONS = [3, 5, 8, 10]
 
 /** Pipeline step definitions with their associated status values. */
 const STEPS: { key: string; label: string; statuses: string[] }[] = [
-  { key: 'story', label: '📝 故事梗概', statuses: ['step1', 'paused_story'] },
-  { key: 'script', label: '📋 剧本', statuses: ['paused_script'] },
-  { key: 'storyboard', label: '🎬 分镜', statuses: ['step2'] },
-  { key: 'assets', label: '🎨 素材', statuses: ['step3', 'paused_assets'] },
-  { key: 'video', label: '🎥 视频', statuses: ['step4', 'paused_video', 'merging'] },
+  { key: 'story', label: '故事梗概', statuses: ['step1', 'paused_story'] },
+  { key: 'script', label: '剧本', statuses: ['paused_script'] },
+  { key: 'storyboard', label: '分镜', statuses: ['step2'] },
+  { key: 'assets', label: '素材', statuses: ['step3', 'paused_assets'] },
+  { key: 'video', label: '视频', statuses: ['step4', 'paused_video', 'merging'] },
 ]
 
 /** Terminal statuses that stop polling. */
@@ -38,26 +38,26 @@ export const TERMINAL = new Set(['completed', 'failed', 'stopped'])
 
 /** Human-readable status labels. */
 export const STATUS_LABELS: Record<string, string> = {
-  started: '🚀 启动中',
-  step1: '📝 生成故事梗概…',
-  paused_story: '⏸ 故事梗概待确认',
-  paused_script: '⏸ 剧本待确认',
-  step2: '🎬 生成分镜…',
-  step3: '🎨 生成素材…',
-  paused_assets: '⏸ 素材待确认',
-  step4: '🎥 生成视频…',
-  paused_video: '⏸ 视频生成中',
-  merging: '🎞 合成中…',
-  completed: '✅ 完成',
-  failed: '❌ 失败',
-  stopped: '⏹ 已停止',
+  started: '启动中',
+  step1: '生成故事梗概…',
+  paused_story: '故事梗概待确认',
+  paused_script: '剧本待确认',
+  step2: '生成分镜…',
+  step3: '生成素材…',
+  paused_assets: '素材待确认',
+  step4: '生成视频…',
+  paused_video: '视频生成中',
+  merging: '合成中…',
+  completed: '完成',
+  failed: '失败',
+  stopped: '已停止',
 }
 
 /** Asset category labels. */
 const ASSET_CATEGORIES: Record<string, string> = {
-  characters: '👤 角色',
-  scenes: '🏞 场景',
-  props: '🎭 道具',
+  characters: '角色',
+  scenes: '场景',
+  props: '道具',
 }
 export function formatTime(ts: number): string {
   try {
@@ -186,7 +186,7 @@ export function renderTextEditor(opts: {
   onRegenerate: (step: 'story' | 'script') => void
 }) {
   const { task, field, editContent, onEditChange, onConfirm, onRegenerate } = opts
-  const title = field === 'story' ? '📝 故事梗概' : '📋 剧本'
+  const title = field === 'story' ? '故事梗概' : '剧本'
   const content = editContent || (field === 'story' ? task.story : task.script) || ''
 
   return createElement(
@@ -209,7 +209,7 @@ export function renderTextEditor(opts: {
           className: 'agnes-btn agnes-btn-primary',
           onClick: () => onConfirm(field, editContent || content),
         },
-        '✅ 确认并继续',
+        '确认并继续',
       ),
       createElement(
         'button',
@@ -217,7 +217,7 @@ export function renderTextEditor(opts: {
           className: 'agnes-btn agnes-btn-secondary',
           onClick: () => onConfirm(field, editContent || content),
         },
-        '✏️ 保存编辑',
+        '保存编辑',
       ),
       createElement(
         'button',
@@ -228,7 +228,7 @@ export function renderTextEditor(opts: {
             onRegenerate(field)
           },
         },
-        '🔄 重新生成',
+        '重新生成',
       ),
     ),
   )
@@ -272,7 +272,7 @@ export function renderAssets(task: DramaTask) {
     return createElement(
       'div',
       { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '🎨 素材'),
+      createElement('div', { className: 'agnes-section-title' }, '素材'),
       createElement(
         'div',
         { style: { color: 'var(--ag-text-3, #6e80a3)', fontSize: '13px', padding: '12px 0' } },
@@ -355,12 +355,12 @@ export function renderAssets(task: DramaTask) {
                 'div',
                 { style: { marginTop: '4px' } },
                 asset.status === 'pending'
-                  ? createElement('span', { className: 'agnes-badge agnes-badge-generating' }, '⏳ 待生成')
+                  ? createElement('span', { className: 'agnes-badge agnes-badge-generating' }, '待生成')
                   : asset.status === 'done'
-                    ? createElement('span', { className: 'agnes-badge agnes-badge-free' }, '✅ 完成')
+                    ? createElement('span', { className: 'agnes-badge agnes-badge-free' }, '完成')
                     : asset.status === 'error'
-                      ? createElement('span', { className: 'agnes-badge agnes-badge-error' }, '❌ 失败')
-                      : createElement('span', { className: 'agnes-badge agnes-badge-generating' }, '🔄 生成中'),
+                      ? createElement('span', { className: 'agnes-badge agnes-badge-error' }, '失败')
+                      : createElement('span', { className: 'agnes-badge agnes-badge-generating' }, '生成中'),
               ),
             ),
           ),
@@ -379,7 +379,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
     return createElement(
       'div',
       { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '🎬 分镜'),
+      createElement('div', { className: 'agnes-section-title' }, '分镜'),
       createElement(
         'div',
         { style: { color: 'var(--ag-text-3, #6e80a3)', fontSize: '13px', padding: '12px 0' } },
@@ -394,7 +394,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
     createElement(
       'div',
       { className: 'agnes-section-title' },
-      '🎬 分镜 (' + shots.length + ' 个镜头)',
+      '分镜 (' + shots.length + ' 个镜头)',
     ),
     ...shots.map((shot, idx) => {
       const vr = videoResults.find((v) => v.shot_index === shot.shot_index)
@@ -422,11 +422,11 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
           ),
           vr
             ? vr.status === 'completed'
-              ? createElement('span', { className: 'agnes-badge agnes-badge-free' }, '✅ 已生成')
+              ? createElement('span', { className: 'agnes-badge agnes-badge-free' }, '已生成')
               : isGenerating
-                ? createElement('span', { className: 'agnes-badge agnes-badge-generating' }, '🔄 生成中')
+                ? createElement('span', { className: 'agnes-badge agnes-badge-generating' }, '生成中')
                 : vr.status === 'failed'
-                  ? createElement('span', { className: 'agnes-badge agnes-badge-error' }, '❌ 失败')
+                  ? createElement('span', { className: 'agnes-badge agnes-badge-error' }, '失败')
                   : null
             : null,
         ),
@@ -455,7 +455,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
                   marginTop: '2px',
                 },
               },
-              '📷 ' +
+              '' +
                 shot.camera +
                 (shot.camera_movement ? ' / ' + shot.camera_movement.intent : ''),
             )
@@ -471,7 +471,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
                   marginTop: '2px',
                 },
               },
-              '🎬 ' + shot.action,
+              '' + shot.action,
             )
           : null,
         // Dialogue
@@ -489,7 +489,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
                   background: 'rgba(162,155,254,0.08)',
                 },
               },
-              '💬 ' + shot.dialogue,
+              '' + shot.dialogue,
             )
           : null,
         // Generate button
@@ -503,7 +503,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
                 style: { marginTop: '6px' },
                 onClick: () => onConfirmVideo(shot.shot_index),
               },
-              '🎬 生成视频',
+              '生成视频',
             )
           : null,
         // Video preview
@@ -529,7 +529,7 @@ export function renderShots(task: DramaTask, onConfirmVideo: (shotIndex: number)
                   marginTop: '4px',
                 },
               },
-              '⚠ ' + vr.error,
+              '' + vr.error,
             )
           : null,
       )
@@ -587,7 +587,7 @@ export function renderFinalCut(
 
       opts.ffmpegMissing
         ? createElement('div', { className: 'agdp-warn' },
-            '⚠️ 未检测到 ffmpeg，无法合成成片。' + (opts.ffmpegHint || '请先安装 ffmpeg。'))
+            '未检测到 ffmpeg，无法合成成片。' + (opts.ffmpegHint || '请先安装 ffmpeg。'))
         : null,
 
       createElement(
@@ -600,7 +600,7 @@ export function renderFinalCut(
             disabled: generating,
             onClick: opts.onGenerateAll,
           },
-          generating ? '⏳ 正在生成镜头…' : '🎬 一键生成全部镜头',
+          generating ? '正在生成镜头…' : '一键生成全部镜头',
         ),
         createElement(
           'button',
@@ -609,7 +609,7 @@ export function renderFinalCut(
             disabled: !canMerge,
             onClick: () => opts.onMerge(false),
           },
-          opts.merging ? '⏳ 合成中…' : '🎞 合成成片',
+          opts.merging ? '合成中…' : '合成成片',
         ),
         createElement(
           'button',
@@ -618,7 +618,7 @@ export function renderFinalCut(
             disabled: !canMerge,
             onClick: () => opts.onMerge(true),
           },
-          opts.merging ? '⏳ 合成中…' : '💬 合成并烧字幕',
+          opts.merging ? '合成中…' : '合成并烧字幕',
         ),
       ),
     ),
@@ -649,7 +649,7 @@ export function renderFinalCut(
                 download: `短剧成片-${task.drama_id}.mp4`,
                 style: { textDecoration: 'none' },
               },
-              '⬇️ 下载成片',
+              '下载成片',
             ),
             createElement(
               'span',
@@ -704,7 +704,7 @@ export function renderCompletedView(task: DramaTask) {
       ? createElement(
           'div',
           { className: 'agnes-section', style: { marginTop: '12px' } },
-          createElement('div', { className: 'agnes-section-title' }, '🎥 视频预览'),
+          createElement('div', { className: 'agnes-section-title' }, '视频预览'),
           ...completedVideos.map((vr) =>
             vr.video_url
               ? createElement(

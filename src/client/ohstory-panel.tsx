@@ -319,13 +319,13 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
   const nextIdx = stepState.findIndex(x => !x.done)
 
   return createElement('div', { className: 'agnes-settings', style: { padding: '16px', overflowY: 'auto', height: '100%' } },
-    createElement('div', { style: { fontSize: '16px', fontWeight: 700, marginBottom: '4px' } }, '✍️ 创作台'),
+    createElement('div', { style: { fontSize: '16px', fontWeight: 700, marginBottom: '4px' } }, '创作台'),
     createElement('div', { style: { ...HINT, marginBottom: '14px' } },
       '建项目 → 照流程一步步生成 → 内容都落在项目目录里。生成由模型完成，所以中间会在对话框里看到它执行。'),
 
     // ── 工作区 ──
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '📂 工作区'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '工作区'),
       createElement('div', { style: ROW },
         createElement('select', {
           style: { ...INPUT, minWidth: '260px', flex: 1 },
@@ -342,7 +342,7 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
 
     // ── 项目 ──
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '📚 创作项目'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '创作项目'),
       createElement('div', { style: { ...ROW, marginBottom: '8px' } },
         createElement('input', {
           style: { ...INPUT, flex: 1, minWidth: '180px' },
@@ -380,17 +380,17 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
       ? createElement('div', { className: 'agnes-setting-group' },
           createElement('div', { style: { ...ROW, marginBottom: '8px' } },
             createElement('div', { className: 'agnes-setting-group-title', style: { marginBottom: 0 } },
-              `🧭 ${project.name} · 创作流程`),
+              `${project.name} · 创作流程`),
             createElement('button', {
               className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
               disabled: busy,
               title: 'Agent 写完后点这里重新检查文件',
               onClick: () => { void refresh() },
-            }, busy ? '刷新中…' : '🔄 刷新进度'),
+            }, busy ? '刷新中…' : '刷新进度'),
           ),
           nextIdx < 0
             ? createElement('div', { style: { fontSize: '12px', marginBottom: '8px' } },
-                '🎉 这几步都有内容了。接着写就往下面的「自由任务」发指令。')
+                '这几步都有内容了。接着写就往下面的「自由任务」发指令。')
             : null,
           createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
             ...stepState.map((x, i) =>
@@ -413,7 +413,7 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
                   ? createElement('button', {
                       className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
                       onClick: () => { void open(`${project.dir}/${x.step.open}`) },
-                    }, '📖 看')
+                    }, '看')
                   : null,
                 sendTask !== undefined
                   ? createElement('button', {
@@ -421,8 +421,8 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
                       title: '把这条任务发给会话，由 Agent 按技能执行',
                       onClick: () => runStep(x.step),
                     }, x.done
-                      ? (x.step.repeatable === true ? '✍️ 写下一章' : '↻ 重写')
-                      : '✨ 生成')
+                      ? (x.step.repeatable === true ? '写下一章' : '↻ 重写')
+                      : '生成')
                   : null,
               ),
             ),
@@ -436,10 +436,10 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
                 },
               },
                 task.state === 'running'
-                  ? `⏳ 正在生成「${task.label}」…面板每 3 秒自己看一次文件，不用切到对话框盯`
+                  ? `正在生成「${task.label}」…面板每 3 秒自己看一次文件，不用切到对话框盯`
                   : task.state === 'done'
-                    ? `✅ 「${task.label}」已写完并落入项目文件。`
-                    : `⚠ 「${task.label}」超过 5 分钟还没写出内容。可点「🔄 刷新进度」再看看。`,
+                    ? `「${task.label}」已写完并落入项目文件。`
+                    : `「${task.label}」超过 5 分钟还没写出内容。可点「🔄 刷新进度」再看看。`,
               )
             : null,
           sendTask === undefined
@@ -453,7 +453,7 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
     // ── 文件 ──
     createElement('div', { className: 'agnes-setting-group' },
       createElement('div', { style: { ...ROW, marginBottom: '8px' } },
-        createElement('div', { className: 'agnes-setting-group-title', style: { marginBottom: 0 } }, '🗂 文件'),
+        createElement('div', { className: 'agnes-setting-group-title', style: { marginBottom: 0 } }, '文件'),
         createElement('button', {
           className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
           onClick: () => { void browse('') },
@@ -465,7 +465,7 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
             className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
             style: { marginBottom: '6px' },
             onClick: () => { void browse(browseDir.split('/').slice(0, -1).join('/')) },
-          }, '⬆ 上一层')
+          }, '上一层')
         : null,
       entries.length === 0
         ? createElement('div', { style: HINT }, '（空目录）')
@@ -490,14 +490,14 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
     editing !== null
       ? createElement('div', { className: 'agnes-setting-group' },
           createElement('div', { style: { ...ROW, marginBottom: '6px' } },
-            createElement('div', { className: 'agnes-setting-group-title', style: { marginBottom: 0 } }, '📝 编辑'),
+            createElement('div', { className: 'agnes-setting-group-title', style: { marginBottom: 0 } }, '编辑'),
             createElement('span', { style: HINT }, editing.rel),
             editing.dirty ? createElement('span', { style: { ...HINT, color: 'var(--ag-warn, #ffd166)' } }, '未保存') : null,
             createElement('button', {
               className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
               disabled: busy || !editing.dirty,
               onClick: () => { void save() },
-            }, busy ? '保存中…' : '💾 保存'),
+            }, busy ? '保存中…' : '保存'),
             createElement('button', {
               className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
               onClick: () => setEditing(null),
@@ -518,7 +518,7 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
 
     // ── 自由任务 ──
     createElement('div', { className: 'agnes-setting-group' },
-      createElement('div', { className: 'agnes-setting-group-title' }, '🤖 自由任务'),
+      createElement('div', { className: 'agnes-setting-group-title' }, '自由任务'),
       sendTask !== undefined
         ? createElement('div', { style: ROW },
             createElement('input', {
@@ -532,12 +532,12 @@ export function OhStoryPanel({ sendTask }: Props): unknown {
               className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
               disabled: taskText.trim() === '',
               onClick: () => fire(),
-            }, '▶ 发起'),
+            }, '发起'),
           )
         : createElement('div', { style: HINT }, '当前会话拿不到任务通道（宿主未注入 conversation）。'),
     ),
 
-    notice ? createElement('div', { style: { ...HINT, marginTop: '10px' } }, '✅ ' + notice) : null,
-    error ? createElement('div', { style: { marginTop: '10px', fontSize: '12px', color: '#ff6b6b' } }, '⚠ ' + error) : null,
+    notice ? createElement('div', { style: { ...HINT, marginTop: '10px' } }, '' + notice) : null,
+    error ? createElement('div', { style: { marginTop: '10px', fontSize: '12px', color: '#ff6b6b' } }, '' + error) : null,
   )
 }

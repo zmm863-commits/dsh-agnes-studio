@@ -87,7 +87,7 @@ export function renderNewTaskForm(v: DramaViewVars): unknown {
       createElement(
         'div',
         { className: 'agnes-section-title', style: { marginBottom: '8px' } },
-        '🎬 新建短剧',
+        '新建短剧',
       ),
       createElement('textarea', {
         className: 'agnes-textarea',
@@ -207,7 +207,7 @@ export function renderNewTaskForm(v: DramaViewVars): unknown {
             disabled: loading || !prompt.trim(),
             style: { flex: 1 },
           },
-          loading ? '⏳ 启动中…' : '🚀 开始创作',
+          loading ? '启动中…' : '开始创作',
         ),
         createElement(
           'button',
@@ -252,7 +252,7 @@ export function renderNewTaskForm(v: DramaViewVars): unknown {
             },
             disabled: loading,
           },
-          '📥 导入剧本',
+          '导入剧本',
         ),
         error
         ? createElement(
@@ -267,7 +267,7 @@ export function renderNewTaskForm(v: DramaViewVars): unknown {
                 fontSize: '12px',
               },
             },
-            '⚠ ' + error,
+            '' + error,
           )
         : null,
     ))
@@ -281,7 +281,7 @@ export function renderTaskList(v: DramaViewVars): unknown {
     createElement(
       'div',
       { className: 'agnes-left' },
-      createElement('div', { className: 'agnes-left-header' }, '📁 任务列表'),
+      createElement('div', { className: 'agnes-left-header' }, '任务列表'),
       createElement(
         'div',
         { className: 'agnes-left-content' },
@@ -413,11 +413,11 @@ export function renderCenter(v: DramaViewVars): unknown {
         task.status === 'completed' ? renderCompletedView(task) : null,
         // Read-only story
         task.story && task.status !== 'paused_story'
-          ? renderReadOnlySection({ title: '📝 故事梗概', content: task.edited_story || task.story })
+          ? renderReadOnlySection({ title: '故事梗概', content: task.edited_story || task.story })
           : null,
         // Read-only script
         task.script && task.status !== 'paused_script' && stepIdx >= 1
-          ? renderReadOnlySection({ title: '📋 剧本', content: task.edited_script || task.script })
+          ? renderReadOnlySection({ title: '剧本', content: task.edited_script || task.script })
           : null,
         // Shots
         stepIdx >= 2 && task.status !== 'paused_story' && task.status !== 'paused_script'
@@ -441,13 +441,13 @@ export function renderCenter(v: DramaViewVars): unknown {
         'div',
         { className: 'agnes-action-bar' },
         task.status === 'stopped'
-          ? createElement('button', { className: 'agnes-btn agnes-btn-primary', onClick: handleResume }, '▶ 恢复')
+          ? createElement('button', { className: 'agnes-btn agnes-btn-primary', onClick: handleResume }, '恢复')
           : null,
         !TERMINAL.has(task.status) && task.status !== 'stopped'
-          ? createElement('button', { className: 'agnes-btn agnes-btn-danger', onClick: handleStop }, '⏹ 停止')
+          ? createElement('button', { className: 'agnes-btn agnes-btn-danger', onClick: handleStop }, '停止')
           : null,
         task.status === 'failed'
-          ? createElement('button', { className: 'agnes-btn agnes-btn-primary', onClick: handleResume }, '🔄 重试')
+          ? createElement('button', { className: 'agnes-btn agnes-btn-primary', onClick: handleResume }, '重试')
           : null,
         createElement(
           'div',
@@ -471,7 +471,7 @@ export function renderRight(v: DramaViewVars): unknown {
           createElement(
             'div',
             { className: 'agnes-section' },
-            createElement('div', { className: 'agnes-section-title' }, '⚙ 创作设置'),
+            createElement('div', { className: 'agnes-section-title' }, '创作设置'),
             createElement(
               'div',
               { className: 'agnes-form-group' },
@@ -523,7 +523,7 @@ export function renderRight(v: DramaViewVars): unknown {
           createElement(
             'div',
             { className: 'agnes-section' },
-            createElement('div', { className: 'agnes-section-title' }, '💡 使用提示'),
+            createElement('div', { className: 'agnes-section-title' }, '使用提示'),
             createElement(
               'div',
               { style: { fontSize: '12px', lineHeight: '1.6', color: 'var(--ag-text-2, #2a3c5e)' } },
@@ -552,7 +552,7 @@ export function renderRight(v: DramaViewVars): unknown {
         createElement(
           'div',
           { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '📋 任务信息'),
+          createElement('div', { className: 'agnes-section-title' }, '任务信息'),
           createElement('div', { className: 'agnes-setting-row' },
             createElement('span', { className: 'agnes-setting-label' }, '状态'),
             createElement('span', { className: 'agnes-setting-value' }, STATUS_LABELS[task.status] || task.status),
@@ -574,7 +574,7 @@ export function renderRight(v: DramaViewVars): unknown {
         createElement(
           'div',
           { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '📊 生成详情'),
+          createElement('div', { className: 'agnes-section-title' }, '生成详情'),
           task.storyboard?.shots
             ? createElement('div', { className: 'agnes-setting-row' },
                 createElement('span', { className: 'agnes-setting-label' }, '分镜数'),
@@ -622,7 +622,7 @@ export function renderRight(v: DramaViewVars): unknown {
         createElement(
           'div',
           { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '🤖 模型配置'),
+          createElement('div', { className: 'agnes-section-title' }, '模型配置'),
           createElement('div', { className: 'agnes-setting-row' },
             createElement('span', { className: 'agnes-setting-label' }, '文本'),
             createElement('span', { className: 'agnes-setting-value', style: { fontSize: '11px' } }, task.text_model),

@@ -53,7 +53,7 @@ export function VideoparsePanel() {
   return createElement('div', { className: 'videoparse-panel' },
     // 标题
     createElement('div', { className: 'videoparse-header' },
-      createElement('h3', null, '🎬 视频解析 + VPT'),
+      createElement('h3', null, '视频解析 + VPT'),
       createElement('p', { className: 'videoparse-desc' }, '视频内容分析 + 视频提示词生成'),
     ),
 
@@ -62,11 +62,11 @@ export function VideoparsePanel() {
       createElement('button', {
         className: `videoparse-tab ${activeTab === 'parse' ? 'active' : ''}`,
         onClick: () => setActiveTab('parse'),
-      }, '📹 视频解析'),
+      }, '视频解析'),
       createElement('button', {
         className: `videoparse-tab ${activeTab === 'vpt' ? 'active' : ''}`,
         onClick: () => setActiveTab('vpt'),
-      }, '✨ VPT 提示词'),
+      }, 'VPT 提示词'),
     ),
 
     // 内容
@@ -142,7 +142,7 @@ function ParsePanel() {
           className: 'parse-btn parse-btn-primary',
           onClick: handleParse,
           disabled: loading || !videoFile.trim(),
-        }, loading ? '⏳ 解析中...' : '📹 开始解析'),
+        }, loading ? '解析中...' : '开始解析'),
       ),
     ),
 
@@ -242,7 +242,7 @@ function VptPanel() {
           className: 'vpt-btn vpt-btn-primary',
           onClick: handleGenerate,
           disabled: loading || !videoFile.trim(),
-        }, loading ? '⏳ 生成中...' : '✨ 生成提示词'),
+        }, loading ? '生成中...' : '生成提示词'),
       ),
     ),
 

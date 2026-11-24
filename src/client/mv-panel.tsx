@@ -148,7 +148,7 @@ export function MvPanel() {
   return createElement('div', { className: 'mv-panel' },
     // 标题
     createElement('div', { className: 'mv-header' },
-      createElement('h3', null, '🎵 MTV 生成'),
+      createElement('h3', null, 'MTV 生成'),
       createElement('p', { className: 'mv-desc' }, '上传音乐/形象 → AI 谱曲 → 设计 → 分镜 → 视频 → 合成'),
     ),
 
@@ -178,13 +178,13 @@ export function MvPanel() {
         ),
 
         audioMode === 'upload' && createElement('label', { className: 'mv-label' },
-          '🎵 音乐文件',
+          '音乐文件',
           createElement('input', { type: 'file', accept: 'audio/*', onChange: handleFileSelect(setAudioFile) }),
         ),
         audioFile && createElement('span', { className: 'mv-file' }, audioFile.name),
 
         createElement('label', { className: 'mv-label' },
-          '🎤 歌词',
+          '歌词',
           createElement('textarea', {
             value: lyrics,
             onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setLyrics(e.target.value),
@@ -194,7 +194,7 @@ export function MvPanel() {
         ),
 
         createElement('label', { className: 'mv-label' },
-          '👤 形象照（可选）',
+          '形象照（可选）',
           createElement('input', { type: 'file', accept: 'image/*', onChange: handleFileSelect(setAvatarFile) }),
         ),
         avatarFile && createElement('span', { className: 'mv-file' }, avatarFile.name),
@@ -207,12 +207,12 @@ export function MvPanel() {
         className: 'mv-btn mv-btn-primary',
         onClick: handleStart,
         disabled: loading || (!audioFile && !lyrics.trim()),
-      }, loading ? '⏳ 处理中...' : '🎵 开始生成 MTV'),
+      }, loading ? '处理中...' : '开始生成 MTV'),
 
       currentTask && createElement('button', {
         className: 'mv-btn mv-btn-danger',
         onClick: handleStop,
-      }, '⏹ 停止'),
+      }, '停止'),
     ),
 
     // 阶段确认
@@ -222,15 +222,15 @@ export function MvPanel() {
         currentTask.status === 'music' && createElement('button', {
           className: 'mv-btn mv-btn-secondary',
           onClick: () => handleConfirm('music'),
-        }, '✅ 确认谱曲完成'),
+        }, '确认谱曲完成'),
         currentTask.status === 'design' && createElement('button', {
           className: 'mv-btn mv-btn-secondary',
           onClick: () => handleConfirm('design'),
-        }, '✅ 确认设计完成'),
+        }, '确认设计完成'),
         currentTask.status === 'storyboard' && createElement('button', {
           className: 'mv-btn mv-btn-secondary',
           onClick: () => handleConfirm('storyboard'),
-        }, '✅ 确认分镜完成'),
+        }, '确认分镜完成'),
       ),
     ),
 

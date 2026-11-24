@@ -57,7 +57,7 @@ export function ModelSelector(props: ModelSelectorProps): unknown {
 
   return createElement('div', { className: 'agnes-section' },
     createElement('div', { className: 'agnes-section-title' },
-      kind === 'image' ? '🎨 图片模型' : '🎬 视频模型',
+      kind === 'image' ? '图片模型' : '视频模型',
     ),
     createElement('select', {
       className: 'agnes-model-select',
@@ -78,8 +78,8 @@ export function ModelSelector(props: ModelSelectorProps): unknown {
     ),
     createElement('div', { className: 'agnes-model-info' },
       free
-        ? createElement('span', { className: 'agnes-model-tag agnes-model-tag-free' }, '🎉 免费')
-        : createElement('span', { className: 'agnes-model-tag' }, '💎 付费'),
+        ? createElement('span', { className: 'agnes-model-tag agnes-model-tag-free' }, '免费')
+        : createElement('span', { className: 'agnes-model-tag' }, '付费'),
       createElement('span', { style: { marginLeft: '6px', fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)' } }, displayName),
     ),
   )
@@ -103,7 +103,7 @@ export function SizeSelector(props: SizeSelectorProps): unknown {
   const { sizes, size, onSizeChange, ratio, onRatioChange } = props
 
   return createElement('div', { className: 'agnes-section' },
-    createElement('div', { className: 'agnes-section-title' }, '📐 尺寸'),
+    createElement('div', { className: 'agnes-section-title' }, '尺寸'),
     createElement('div', { className: 'agnes-size-grid' },
       ...sizes.map(s =>
         createElement('button', {
@@ -113,7 +113,7 @@ export function SizeSelector(props: SizeSelectorProps): unknown {
         }, s.replace('x', '×')),
       ),
     ),
-    createElement('div', { className: 'agnes-section-title', style: { marginTop: '12px' } }, '📏 宽高比'),
+    createElement('div', { className: 'agnes-section-title', style: { marginTop: '12px' } }, '宽高比'),
     createElement('div', { className: 'agnes-ratio-grid' },
       ...IMAGE_RATIOS.map(r =>
         createElement('button', {
@@ -156,14 +156,14 @@ export function VideoModeSelector(props: VideoModeSelectorProps): unknown {
   } = props
 
   return createElement('div', { className: 'agnes-section' },
-    createElement('div', { className: 'agnes-section-title' }, '🎥 生成模式'),
+    createElement('div', { className: 'agnes-section-title' }, '生成模式'),
     createElement('div', { className: 'agnes-mode-grid' },
       ...VIDEO_MODES.map(m =>
         createElement('button', {
           key: m,
           className: `agnes-mode-btn ${mode === m ? 'active' : ''}`,
           onClick: () => onModeChange(m),
-        }, m === 'text' ? '📝 文生视频' : m === 'keyframe' ? '🖼 首尾帧' : '📷 参考图'),
+        }, m === 'text' ? '文生视频' : m === 'keyframe' ? '首尾帧' : '参考图'),
       ),
     ),
     mode === 'keyframe' ? createElement('div', { className: 'agnes-frame-upload' },
@@ -173,7 +173,7 @@ export function VideoModeSelector(props: VideoModeSelectorProps): unknown {
       },
         firstFrame
           ? createElement('img', { src: firstFrame, alt: '首帧', style: { width: '100%', height: '100%', objectFit: 'cover' } })
-          : '🖼 首帧',
+          : '首帧',
       ),
       createElement('div', {
         className: `agnes-frame-item ${lastFrame ? 'has-image' : ''}`,
@@ -181,7 +181,7 @@ export function VideoModeSelector(props: VideoModeSelectorProps): unknown {
       },
         lastFrame
           ? createElement('img', { src: lastFrame, alt: '尾帧', style: { width: '100%', height: '100%', objectFit: 'cover' } })
-          : '🖼 尾帧（可选）',
+          : '尾帧（可选）',
       ),
     ) : null,
     createElement('div', { className: 'agnes-input-row', style: { marginTop: '8px' } },

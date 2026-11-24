@@ -28,7 +28,7 @@ export function ToolboxPanel() {
   return createElement('div', { className: 'toolbox-panel' },
     // 标题
     createElement('div', { className: 'toolbox-header' },
-      createElement('h3', null, '🧰 多能宝箱'),
+      createElement('h3', null, '多能宝箱'),
       createElement('p', { className: 'toolbox-desc' }, '视频下载 + 文本转音频'),
     ),
 
@@ -37,11 +37,11 @@ export function ToolboxPanel() {
       createElement('button', {
         className: `toolbox-tab ${activeTab === 'vidbee' ? 'active' : ''}`,
         onClick: () => setActiveTab('vidbee'),
-      }, '📹 VIDbee 视频下载'),
+      }, 'VIDbee 视频下载'),
       createElement('button', {
         className: `toolbox-tab ${activeTab === 'tts' ? 'active' : ''}`,
         onClick: () => setActiveTab('tts'),
-      }, '🔊 文本转音频'),
+      }, '文本转音频'),
     ),
 
     // 内容
@@ -114,7 +114,7 @@ function VidbeePanel() {
         className: 'vidbee-btn vidbee-btn-primary',
         onClick: handleDownload,
         disabled: loading || !url.trim(),
-      }, loading ? '⏳ 下载中...' : '⬇️ 开始下载'),
+      }, loading ? '下载中...' : '开始下载'),
     ),
 
     log.length > 0 && createElement('div', { className: 'vidbee-log' },
@@ -179,7 +179,7 @@ function TtsPanel() {
         className: 'tts-btn tts-btn-primary',
         onClick: handleConvert,
         disabled: loading || !text.trim(),
-      }, loading ? '⏳ 转换中...' : '🔊 开始转换'),
+      }, loading ? '转换中...' : '开始转换'),
     ),
 
     audioUrl && createElement('div', { className: 'tts-result' },

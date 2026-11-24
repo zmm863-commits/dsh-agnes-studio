@@ -61,7 +61,7 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
   const rootStyle: any = { padding: '16px', overflowY: 'auto', height: '100%' }
 
   return createElement('div', { style: rootStyle },
-    createElement('div', { style: { fontSize: '16px', fontWeight: 700, marginBottom: '16px' } }, '✨ 提示词专家'),
+    createElement('div', { style: { fontSize: '16px', fontWeight: 700, marginBottom: '16px' } }, '提示词专家'),
 
     // Expert grid
     types.length > 0 ? createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', marginBottom: '16px' } },
@@ -120,7 +120,7 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
         style: { width: '100%' },
         disabled: loading || !idea.trim(),
         onClick: handleGenerate,
-      }, loading ? '⏳ 生成中...' : '✨ 生成提示词'),
+      }, loading ? '生成中...' : '生成提示词'),
       loading ? createElement('div', {
         style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', textAlign: 'center' },
       }, `正在调用 ${textModels[model] || model}…通常 5–20 秒`) : null,
@@ -129,7 +129,7 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
         style: { marginTop: '12px', padding: '12px', borderRadius: '8px', background: '#252538', border: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'pre-wrap', fontSize: '12px', lineHeight: 1.6, maxHeight: '300px', overflowY: 'auto' },
       },
         result,
-        createElement('button', { className: 'agnes-btn agnes-btn-sm agnes-btn-secondary', style: { marginTop: '8px' }, onClick: () => handleCopy(result) }, '📋 复制'),
+        createElement('button', { className: 'agnes-btn agnes-btn-sm agnes-btn-secondary', style: { marginTop: '8px' }, onClick: () => handleCopy(result) }, '复制'),
         // 打通到生图页：原先这里只有「复制」，用户得自己切页签再粘一遍。
         // 只在拿到英文提示词时更实用，但中文也能直接用，所以不做内容判断。
         onUseForImage ? createElement('button', {
@@ -137,13 +137,13 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
           style: { marginTop: '8px', marginLeft: '6px' },
           title: '把这段提示词填到「生图」页并切过去',
           onClick: () => onUseForImage(result),
-        }, '🎨 去生图') : null,
+        }, '去生图') : null,
         onUseForVideo ? createElement('button', {
           className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
           style: { marginTop: '8px', marginLeft: '6px' },
           title: '把这段提示词填到「生视频」页并切过去',
           onClick: () => onUseForVideo(result),
-        }, '🎬 去生视频') : null,
+        }, '去生视频') : null,
       ) : null,
 
       // 生成历史：原先只写进 localStorage（20 条）却没有任何界面入口 ——
@@ -151,7 +151,7 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
       history.length > 0 ? createElement('div', { style: { marginTop: '16px' } },
         createElement('div', {
           style: { fontSize: '12px', fontWeight: 600, color: 'var(--ag-text-2, #2a3c5e)', marginBottom: '6px' },
-        }, `🕘 历史（${history.length}）`),
+        }, `历史（${history.length}）`),
         ...history.map((h, i) =>
           createElement('div', {
             key: `${h.time}-${i}`,
@@ -171,6 +171,6 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
           ),
         ),
       ) : null,
-    ) : createElement('div', { style: { padding: '40px', textAlign: 'center', color: 'var(--ag-text-3, #6e80a3)' } }, '👆 选择一个专家开始'),
+    ) : createElement('div', { style: { padding: '40px', textAlign: 'center', color: 'var(--ag-text-3, #6e80a3)' } }, '选择一个专家开始'),
   )
 }

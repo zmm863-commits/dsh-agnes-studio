@@ -145,7 +145,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
       // 左：表单
       createElement('div', { className: 'agcv-form' },
         createElement('div', { className: 'agcv-card' },
-          createElement('div', { className: 'agcv-card-title' }, '📄 导入小说（可选）'),
+          createElement('div', { className: 'agcv-card-title' }, '导入小说（可选）'),
           createElement('label', { className: 'agnes-btn agnes-btn-ghost agnes-btn-full' },
             parsing ? '解析中…' : '选择 TXT / DOCX 文件',
             createElement('input', {
@@ -158,7 +158,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
         ),
 
         createElement('div', { className: 'agcv-card' },
-          createElement('div', { className: 'agcv-card-title' }, '📝 作品信息'),
+          createElement('div', { className: 'agcv-card-title' }, '作品信息'),
           createElement('div', { className: 'agcv-field' },
             createElement('label', null, '书名'),
             createElement('input', { style: inputStyle, value: title, onChange: (e: any) => setTitle(e.target.value), placeholder: '例如：重生之都市医仙' }),
@@ -178,7 +178,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
         ),
 
         createElement('div', { className: 'agcv-card' },
-          createElement('div', { className: 'agcv-card-title' }, '🎨 风格与模型'),
+          createElement('div', { className: 'agcv-card-title' }, '风格与模型'),
           createElement('div', { className: 'agcv-styles' },
             ...styles.map(s => createElement('button', {
               key: s.key,
@@ -199,7 +199,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
           createElement('div', { className: 'agcv-field' },
             createElement('label', null, '参考图（可选，图生图）'),
             createElement('label', { className: 'agnes-btn agnes-btn-ghost agnes-btn-sm' },
-              refImage ? '✅ 已选参考图' : '选择参考图',
+              refImage ? '已选参考图' : '选择参考图',
               createElement('input', {
                 type: 'file', accept: 'image/*', style: { display: 'none' },
                 onChange: async (e: any) => {
@@ -221,7 +221,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
           disabled: loading,
           onClick: handleGenerate,
           style: { height: '40px' },
-        }, loading ? '⏳ 生成中…' : '🎨 生成封面（3:4）'),
+        }, loading ? '生成中…' : '生成封面（3:4）'),
       ),
 
       // 右：预览与历史
@@ -233,7 +233,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
                 className: 'agnes-btn agnes-btn-secondary agnes-btn-sm',
                 href: covers[0].url, target: '_blank', rel: 'noreferrer', download: `${title || '封面'}.png`,
                 style: { textDecoration: 'none', marginTop: '12px' },
-              }, '⬇️ 下载封面'),
+              }, '下载封面'),
             )
           : createElement('div', { className: 'agcv-empty' },
               // 3:4 虚线海报框，明确告诉用户"封面会出现在这里"

@@ -353,7 +353,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
       createElement('span', null, '·'),
       createElement('span', null, taskList.length + ' 个任务'),
       currentTask && !TERMINAL.has(currentTask.status)
-        ? createElement('span', { style: { marginLeft: 'auto', color: '#fdcb6e' } }, '⚡ 制作中')
+        ? createElement('span', { style: { marginLeft: 'auto', color: '#fdcb6e' } }, '制作中')
         : null,
     ),
   )

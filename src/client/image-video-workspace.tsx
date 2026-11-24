@@ -9,6 +9,7 @@
  * 如果把 prompt / 加载态下沉到本组件，切到「短剧」再切回来会因组件卸载而丢状态，
  * 与改造前行为不一致。代价是 props 较多，但每一个都是显式的。
  */
+import { iconSvg } from './icons.ts'
 import { createElement } from './react-shim.ts'
 import { TEXT_MODEL_OPTIONS, type GenHistoryItem, type KeyStatus, type StudioProject } from './studio.ts'
 import { DramaPanel } from './drama-panel.tsx'
@@ -206,11 +207,11 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
                   createElement('button', {
                     className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
                     onClick: () => onDownload(result.url, `agnes-${Date.now()}.${result.type === 'image' ? 'png' : 'mp4'}`),
-                  }, '📥 下载'),
+                  }, '下载'),
                   createElement('button', {
                     className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
                     onClick: () => { navigator.clipboard?.writeText(result.url) },
-                  }, '📋 复制链接'),
+                  }, '复制链接'),
                   // 只有图片能当参考图；视频结果是任务产物，不能回灌进 images 参数
                   result.type === 'image' ? createElement('button', {
                     className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
@@ -218,15 +219,18 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
                     onClick: () => {
                       if (!refImages.includes(result.url)) onRefImagesChange([...refImages, result.url])
                     },
-                  }, refImages.includes(result.url) ? '✅ 已加入参考图' : '🖼 作为参考图') : null,
+                  }, refImages.includes(result.url) ? '已加入参考图' : '作为参考图') : null,
                 ),
               )
               : createElement('div', { className: 'agnes-empty' },
-                  createElement('div', { className: 'agnes-empty-icon' },
-                    tab === 'image' ? '🎨' : tab === 'video' ? '🎬' : '📖',
-                  ),
+                  createElement('div', {
+                    className: 'agnes-empty-icon',
+                    dangerouslySetInnerHTML: {
+                      __html: iconSvg(tab === 'image' ? 'image' : tab === 'video' ? 'video' : 'novel', 22),
+                    },
+                  }),
                   createElement('div', { className: 'agnes-empty-title' },
-                    tab === 'image' ? 'AI 生图' : tab === 'video' ? 'AI 生视频' : '🎬 短剧工作台',
+                    tab === 'image' ? 'AI 生图' : tab === 'video' ? 'AI 生视频' : '短剧工作台',
                   ),
                   createElement('div', { className: 'agnes-empty-desc' },
                     tab === 'image' ? '在右侧输入提示词，选择模型和尺寸，点击生成' :
@@ -241,12 +245,12 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
           className: 'agnes-btn agnes-btn-primary',
           disabled: loading || !prompt.trim() || tab === 'settings',
           onClick: tab === 'image' ? onGenerateImage : onGenerateVideo,
-        }, loading ? `⏳ ${loadingText}` : tab === 'image' ? '✨ 生成图片' : '🎬 生成视频'),
+        }, loading ? `${loadingText}` : tab === 'image' ? '生成图片' : '生成视频'),
         isMedia && project ? createElement('button', {
           className: 'agnes-btn agnes-btn-secondary',
           disabled: loading,
           onClick: onBatchGenerate,
-        }, '▶ 批量生成所有场景') : null,
+        }, '批量生成所有场景') : null,
         result ? createElement('button', {
           className: 'agnes-btn agnes-btn-ghost',
           onClick: onClearResult,
@@ -255,7 +259,7 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
           className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
           onClick: onCancel,
           title: '停止等待（平台侧任务可能仍在生成）',
-        }, '⏹ 停止') : null,
+        }, '停止') : null,
         isMedia ? createElement('button', {
           className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
           onClick: onToggleParams,
@@ -301,7 +305,7 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
           createElement('div', { className: 'agnes-right-scroll' },
 
         isMedia ? createElement('div', { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '📝 提示词'),
+          createElement('div', { className: 'agnes-section-title' }, '提示词'),
           createElement('textarea', {
             className: 'agnes-textarea',
             value: prompt,
@@ -327,7 +331,7 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
         ) : null,
 
         isMedia && currentScene ? createElement('div', { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, `🎞 场景 ${selectedScene + 1} 提示词`),
+          createElement('div', { className: 'agnes-section-title' }, `场景 ${selectedScene + 1} 提示词`),
           createElement('textarea', {
             className: 'agnes-textarea',
             value: currentScene.prompt,
@@ -342,7 +346,7 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
               disabled: loading || !currentScene.prompt.trim(),
               onClick: () => onGenerateSceneImage(selectedScene),
               style: { flex: 1 },
-            }, '✨ 生成此场景'),
+            }, '生成此场景'),
             createElement('button', {
               className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
               onClick: () => { if (selectedScene > 0) onSelectScene(selectedScene - 1) },
@@ -388,7 +392,7 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
         isMedia ? createElement('div', { className: 'agnes-divider' }) : null,
 
         isMedia ? createElement('div', { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '🖼 参考图片'),
+          createElement('div', { className: 'agnes-section-title' }, '参考图片'),
           createElement('div', {
             className: 'agnes-ref-chips',
             // 支持把图片直接拖进来（与点「+」选文件等效）
@@ -440,16 +444,16 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
         isMedia ? createElement('div', { className: 'agnes-divider' }) : null,
 
         isMedia ? createElement('div', { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, 'ℹ️ 模型信息'),
+          createElement('div', { className: 'agnes-section-title' }, '模型信息'),
           createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
-            createElement('div', null, `🎨 当前图片模型: ${modelName(selectedImageModel, imageModels)}`),
-            createElement('div', null, `🎬 当前视频模型: ${modelName(selectedVideoModel, videoModels)}`),
-            createElement('div', null, `📐 图片尺寸: ${imageSize} · 比例: ${imageRatio}`),
-            tab === 'video' ? createElement('div', null, `🎥 视频模式: ${videoMode === 'text' ? '文生视频' : videoMode === 'keyframe' ? '首尾帧' : '参考图'} · ${videoResolution} · ${videoAspectRatio}`) : null,
+            createElement('div', null, `当前图片模型: ${modelName(selectedImageModel, imageModels)}`),
+            createElement('div', null, `当前视频模型: ${modelName(selectedVideoModel, videoModels)}`),
+            createElement('div', null, `图片尺寸: ${imageSize} · 比例: ${imageRatio}`),
+            tab === 'video' ? createElement('div', null, `视频模式: ${videoMode === 'text' ? '文生视频' : videoMode === 'keyframe' ? '首尾帧' : '参考图'} · ${videoResolution} · ${videoAspectRatio}`) : null,
             createElement('div', { style: { marginTop: '6px' } },
-              keyStatus === 'ready' ? '🔑 API Key：已配置'
-                : keyStatus === 'missing' ? '🔑 API Key：未配置'
-                  : '🔑 API Key：未检测',
+              keyStatus === 'ready' ? 'API Key：已配置'
+                : keyStatus === 'missing' ? 'API Key：未配置'
+                  : 'API Key：未检测',
             ),
           ),
         ) : null,

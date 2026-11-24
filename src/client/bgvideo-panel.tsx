@@ -178,7 +178,7 @@ export function BgVideoPanel() {
       await apiCall('POST', '/style_refs/distill', { task_id: currentTask.task_id })
       // 获取风格
       await apiCall('GET', `/style?task_id=${currentTask.task_id}`)
-      setError('✅ 风格提炼完成')
+      setError('风格提炼完成')
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败')
     } finally {
@@ -247,7 +247,7 @@ export function BgVideoPanel() {
       await apiCall('POST', '/write_shots', { task_id: currentTask.task_id })
       const data = await apiCall<{ storyboard: Array<{ index: number; desc: string }> }>('GET', `/storyboard?task_id=${currentTask.task_id}`)
       setCurrentTask(prev => prev ? { ...prev, shots: data.storyboard } : null)
-      setError('✅ 分镜生成完成')
+      setError('分镜生成完成')
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成分镜失败')
     } finally {
@@ -283,7 +283,7 @@ export function BgVideoPanel() {
         setCurrentTask(statusData.task)
         if (statusData.task.status === 'completed') {
           setGeneratingVideo(false)
-          setError('✅ 生成完成')
+          setError('生成完成')
         } else if (statusData.task.status === 'failed' || statusData.task.status === 'stopped') {
           setGeneratingVideo(false)
           setError(statusData.task.message)
@@ -308,7 +308,7 @@ export function BgVideoPanel() {
   return createElement('div', { className: 'bgvideo-panel' },
     // 标题
     createElement('div', { className: 'bgvideo-header' },
-      createElement('h3', null, '🎬 背景视频生成'),
+      createElement('h3', null, '背景视频生成'),
       createElement('p', { className: 'bgvideo-desc' }, '上传素材 → AI 分幕 → 生成背景视频'),
     ),
 
@@ -335,31 +335,31 @@ export function BgVideoPanel() {
       createElement('h4', null, '① 上传素材'),
       createElement('div', { className: 'bgvideo-form' },
         createElement('label', { className: 'bgvideo-label' },
-          '🔊 原声（必填）',
+          '原声（必填）',
           createElement('input', { type: 'file', accept: 'audio/*', onChange: handleFileSelect(setAudioFile) }),
         ),
         audioFile && createElement('span', { className: 'bgvideo-file' }, audioFile.name),
 
         createElement('label', { className: 'bgvideo-label' },
-          '📝 歌词（.lrc）',
+          '歌词（.lrc）',
           createElement('input', { type: 'file', accept:'.lrc,.txt', onChange: handleFileSelect(setLrcFile) }),
         ),
         lrcFile && createElement('span', { className: 'bgvideo-file' }, lrcFile.name),
 
         createElement('label', { className: 'bgvideo-label' },
-          '📄 文稿（朗诵档）',
+          '文稿（朗诵档）',
           createElement('input', { type: 'file', accept:'.txt,.docx,.md', onChange: handleFileSelect(setScriptFile) }),
         ),
         scriptFile && createElement('span', { className: 'bgvideo-file' }, scriptFile.name),
 
         createElement('label', { className: 'bgvideo-label' },
-          '🎬 参考片（可选）',
+          '参考片（可选）',
           createElement('input', { type: 'file', accept: 'video/*', onChange: handleFileSelect(setRefVideoFile) }),
         ),
         refVideoFile && createElement('span', { className: 'bgvideo-file' }, refVideoFile.name),
 
         createElement('label', { className: 'bgvideo-label' },
-          '🎼 伴奏（可选）',
+          '伴奏（可选）',
           createElement('input', { type: 'file', accept: 'audio/*', onChange: handleFileSelect(setAccompanimentFile) }),
         ),
         accompanimentFile && createElement('span', { className: 'bgvideo-file' }, accompanimentFile.name),
@@ -371,7 +371,7 @@ export function BgVideoPanel() {
       createElement('h4', null, '③ 风格截图（可选）'),
       createElement('div', { className: 'bgvideo-form' },
         createElement('label', { className: 'bgvideo-label' },
-          '🎨 上传风格截图',
+          '上传风格截图',
           createElement('input', { type: 'file', accept: 'image/*', multiple: true, onChange: handleStyleUpload }),
         ),
         styleFiles.length > 0 && createElement('div', { className: 'bgvideo-style-list' },
@@ -383,7 +383,7 @@ export function BgVideoPanel() {
           className: 'bgvideo-btn bgvideo-btn-secondary',
           onClick: handleGenerate,
           disabled: generating || !currentTask,
-        }, generating ? '⏳ 生成中...' : '✨ 一键出方案'),
+        }, generating ? '生成中...' : '一键出方案'),
       ),
     ),
 
@@ -410,7 +410,7 @@ export function BgVideoPanel() {
           className: 'bgvideo-btn bgvideo-btn-secondary',
           onClick: handleCreateCharacter,
           disabled: !charName.trim(),
-        }, '➕ 创建角色'),
+        }, '创建角色'),
       ),
       characters.length > 0 && createElement('div', { className: 'bgvideo-char-list' },
         characters.map(char =>
@@ -425,18 +425,18 @@ export function BgVideoPanel() {
                 className: 'bgvideo-btn bgvideo-btn-small',
                 onClick: () => handleGenPortrait(char.id),
                 disabled: !currentTask,
-              }, '📸 定妆照'),
+              }, '定妆照'),
               createElement('button', {
                 className: 'bgvideo-btn bgvideo-btn-small',
                 onClick: () => handleAutoAnchor(char.id),
                 disabled: !currentTask,
-              }, '⚓ 定锚'),
+              }, '定锚'),
               createElement('button', {
                 className: 'bgvideo-btn bgvideo-btn-small bgvideo-btn-danger',
                 onClick: () => handleDeleteCharacter(char.id),
               }, '🗑'),
             ),
-            char.anchor && createElement('span', { className: 'bgvideo-char-anchor' }, `✅ 锚图: ${char.anchor}`),
+            char.anchor && createElement('span', { className: 'bgvideo-char-anchor' }, `锚图: ${char.anchor}`),
           )
         )
       ),
@@ -450,12 +450,12 @@ export function BgVideoPanel() {
           className: 'bgvideo-btn bgvideo-btn-secondary',
           onClick: handleWriteShots,
           disabled: writingShots || !currentTask,
-        }, writingShots ? '⏳ 生成中...' : '🎬 生成分镜'),
+        }, writingShots ? '生成中...' : '生成分镜'),
         createElement('button', {
           className: 'bgvideo-btn bgvideo-btn-secondary',
           onClick: handleShowContactSheet,
           disabled: !currentTask,
-        }, '🎞 联系表'),
+        }, '联系表'),
       ),
       currentTask?.shots && currentTask.shots.length > 0 && createElement('div', { className: 'bgvideo-shot-list' },
         currentTask.shots.slice(0, 10).map(shot =>
@@ -473,7 +473,7 @@ export function BgVideoPanel() {
     showContactSheet && createElement('div', { className: 'bgvideo-modal' },
       createElement('div', { className: 'bgvideo-modal-content' },
         createElement('div', { className: 'bgvideo-modal-header' },
-          createElement('h4', null, '🎞 联系表'),
+          createElement('h4', null, '联系表'),
           createElement('button', {
             className: 'bgvideo-modal-close',
             onClick: () => setShowContactSheet(false),
@@ -498,12 +498,12 @@ export function BgVideoPanel() {
           className: 'bgvideo-btn bgvideo-btn-primary',
           onClick: handleGenerateVideo,
           disabled: generatingVideo || !currentTask || currentTask.status === 'generating',
-        }, generatingVideo ? '⏳ 生成中...' : '🎬 开始出片'),
+        }, generatingVideo ? '生成中...' : '开始出片'),
         createElement('button', {
           className: 'bgvideo-btn bgvideo-btn-secondary',
           onClick: handlePreview,
           disabled: !currentTask || currentTask.status !== 'completed',
-        }, '▶ 预览成片'),
+        }, '预览成片'),
       ),
       currentTask?.status === 'generating' && createElement('div', { className: 'bgvideo-progress' },
         createElement('div', { className: 'bgvideo-progress-bar' }),
@@ -515,7 +515,7 @@ export function BgVideoPanel() {
     showPreview && createElement('div', { className: 'bgvideo-modal' },
       createElement('div', { className: 'bgvideo-modal-content' },
         createElement('div', { className: 'bgvideo-modal-header' },
-          createElement('h4', null, '▶ 预览成片'),
+          createElement('h4', null, '预览成片'),
           createElement('button', {
             className: 'bgvideo-modal-close',
             onClick: () => setShowPreview(false),
@@ -582,12 +582,12 @@ export function BgVideoPanel() {
         className: 'bgvideo-btn bgvideo-btn-primary',
         onClick: handleStart,
         disabled: loading || !audioFile,
-      }, loading ? '⏳ 处理中...' : '🎵 开始生成背景视频'),
+      }, loading ? '处理中...' : '开始生成背景视频'),
 
       currentTask && createElement('button', {
         className: 'bgvideo-btn bgvideo-btn-danger',
         onClick: handleStop,
-      }, '⏹ 停止'),
+      }, '停止'),
     ),
 
     // 分幕结果

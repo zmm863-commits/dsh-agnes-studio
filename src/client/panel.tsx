@@ -259,7 +259,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
   const handleGenerateImage = useCallback(async () => {
     if (!prompt.trim() || loading) return
     setLoading(true)
-    setLoadingText('✨ 生成图片中...')
+    setLoadingText('生成图片中...')
     setProgress(0)
     setError('')
     setNotice('')
@@ -312,7 +312,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
   const handleGenerateVideo = useCallback(async () => {
     if (!prompt.trim() || loading) return
     setLoading(true)
-    setLoadingText('🎬 提交视频任务...')
+    setLoadingText('提交视频任务...')
     setProgress(0)
     setError('')
     setResult(null)
@@ -330,7 +330,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
         images: videoMode === 'reference' ? refImages : undefined,
       })
 
-      setLoadingText('🔄 视频生成中...')
+      setLoadingText('视频生成中...')
 
       let attempts = 0
       const maxAttempts = 180
@@ -371,7 +371,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
           throw new Error(status.error || '视频生成失败')
         }
 
-        setLoadingText(`🔄 视频生成中... ${status.progress || 0}%`)
+        setLoadingText(`视频生成中... ${status.progress || 0}%`)
       }
 
       if (attempts >= maxAttempts) {
@@ -507,7 +507,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
     if (!scene.prompt.trim()) return
 
     setLoading(true)
-    setLoadingText(`✨ 生成场景 ${idx + 1} 图片...`)
+    setLoadingText(`生成场景 ${idx + 1} 图片...`)
     setProgress(0)
     setError('')
 
@@ -560,7 +560,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
       const scene = project.scenes[i]
       if (!scene.prompt.trim()) continue
 
-      setLoadingText(`✨ 生成场景 ${i + 1}/${project.scenes.length}...`)
+      setLoadingText(`生成场景 ${i + 1}/${project.scenes.length}...`)
       setProgress(Math.round((done / total) * 100))
 
       try {
@@ -840,14 +840,14 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
       keyStatus === 'missing' ? createElement('button', {
         className: 'agnes-statusbar-link',
         onClick: () => setGuideOpen(true),
-      }, '🔑 如何配置 Key') : null,
-      project ? createElement('span', null, `📊 ${project.scenes.length} 个场景`) : null,
-      result ? createElement('span', null, `✅ 已生成 ${result.type === 'image' ? '图片' : '视频'}`) : null,
+      }, '如何配置 Key') : null,
+      project ? createElement('span', null, `${project.scenes.length} 个场景`) : null,
+      result ? createElement('span', null, `已生成 ${result.type === 'image' ? '图片' : '视频'}`) : null,
       (tab === 'image' || tab === 'video') ? createElement('span', {
         style: { marginLeft: 'auto', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' },
       }, tab === 'image'
-        ? `🎨 ${getModelDisplayName(selectedImageModel, imageModels).split('(')[0].trim()}`
-        : `🎬 ${getModelDisplayName(selectedVideoModel, videoModels).split('(')[0].trim()}`) : null,
+        ? `${getModelDisplayName(selectedImageModel, imageModels).split('(')[0].trim()}`
+        : `${getModelDisplayName(selectedVideoModel, videoModels).split('(')[0].trim()}`) : null,
     ),
 
     // ── Modals ──

@@ -56,7 +56,7 @@ export function NovelSplitPanel() {
   return createElement('div', { className: 'novel-split-panel' },
     // 标题
     createElement('div', { className: 'novel-split-header' },
-      createElement('h3', null, '📖 小说工具'),
+      createElement('h3', null, '小说工具'),
       createElement('p', { className: 'novel-split-desc' }, '分批拆分 + 去 AI 味'),
     ),
 
@@ -65,11 +65,11 @@ export function NovelSplitPanel() {
       createElement('button', {
         className: `novel-split-tab ${activeTab === 'split' ? 'active' : ''}`,
         onClick: () => setActiveTab('split'),
-      }, '📖 分批拆分'),
+      }, '分批拆分'),
       createElement('button', {
         className: `novel-split-tab ${activeTab === 'deai' ? 'active' : ''}`,
         onClick: () => setActiveTab('deai'),
-      }, '✨ 去 AI 味'),
+      }, '去 AI 味'),
     ),
 
     // 内容
@@ -174,11 +174,11 @@ function SplitPanel() {
         className: 'split-btn split-btn-primary',
         onClick: handleStart,
         disabled: loading || !sourceText.trim(),
-      }, loading ? '⏳ 拆分中...' : '📖 开始拆分'),
+      }, loading ? '拆分中...' : '开始拆分'),
       currentTask && createElement('button', {
         className: 'split-btn split-btn-danger',
         onClick: handleStop,
-      }, '⏹ 停止'),
+      }, '停止'),
     ),
 
     // 拆分结果
@@ -222,7 +222,7 @@ function DeaiPanel() {
         const statusData = await apiCall<{ status: string; message: string; text?: string }>(API_DEAI, 'GET', `/status/${data.tid}`)
         if (statusData.status === 'completed') {
           setLoading(false)
-          setError('✅ 处理完成')
+          setError('处理完成')
         } else if (statusData.status === 'failed' || statusData.status === 'stopped') {
           setLoading(false)
           setError(statusData.message)
@@ -279,7 +279,7 @@ function DeaiPanel() {
         className: 'deai-btn deai-btn-primary',
         onClick: handleStart,
         disabled: loading || !inputText.trim(),
-      }, loading ? '⏳ 处理中...' : '✨ 开始处理'),
+      }, loading ? '处理中...' : '开始处理'),
     ),
 
     // 处理结果

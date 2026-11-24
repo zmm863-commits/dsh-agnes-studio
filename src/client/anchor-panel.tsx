@@ -124,7 +124,7 @@ export function AnchorPanel() {
     ff && !ff.available
       ? createElement('div', { className: 'agnes-keyguide', style: { margin: '16px 16px 0' } },
           createElement('div', { className: 'agnes-keyguide-head' },
-            createElement('div', { className: 'agnes-keyguide-title' }, '⚠️ 缺少 ffmpeg，口播功能不可用'),
+            createElement('div', { className: 'agnes-keyguide-title' }, '缺少 ffmpeg，口播功能不可用'),
           ),
           createElement('div', { className: 'agnes-keyguide-note' }, ff.hint || '请安装 ffmpeg 后重试'),
         )
@@ -132,7 +132,7 @@ export function AnchorPanel() {
     ff && ff.available && !ff.font
       ? createElement('div', { className: 'agnes-keyguide', style: { margin: '16px 16px 0' } },
           createElement('div', { className: 'agnes-keyguide-head' },
-            createElement('div', { className: 'agnes-keyguide-title' }, '⚠️ 未找到中文字体'),
+            createElement('div', { className: 'agnes-keyguide-title' }, '未找到中文字体'),
           ),
           createElement('div', { className: 'agnes-keyguide-note' }, ff.hint || '字幕会显示成方块，建议安装中文字体'),
         )
@@ -141,7 +141,7 @@ export function AnchorPanel() {
     createElement('div', { className: 'agnes-anchor-grid' },
       createElement('div', { className: 'agnes-anchor-col' },
     createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '🎙 文稿'),
+      createElement('div', { className: 'agnes-section-title' }, '文稿'),
       createElement('textarea', {
         className: 'agnes-textarea',
         rows: 5,
@@ -161,7 +161,7 @@ export function AnchorPanel() {
     ),
 
     createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '🎬 画面模式'),
+      createElement('div', { className: 'agnes-section-title' }, '画面模式'),
       createElement('div', { className: 'agnes-mode-cards' },
         ...MODES.map(m => createElement('button', {
           key: m.id,
@@ -178,7 +178,7 @@ export function AnchorPanel() {
       mode === 'static'
         ? createElement('div', { style: { ...rowStyle, marginTop: '8px' } },
             createElement('label', { className: 'agnes-btn agnes-btn-ghost' },
-              imageData ? '✅ 已选择形象图' : '选择形象图',
+              imageData ? '已选择形象图' : '选择形象图',
               createElement('input', {
                 type: 'file', accept: 'image/*', style: { display: 'none' },
                 onChange: (e: any) => pickFile(e.target.files?.[0], 'image'),
@@ -194,7 +194,7 @@ export function AnchorPanel() {
       mode === 'clip'
         ? createElement('div', { style: { ...rowStyle, marginTop: '8px' } },
             createElement('label', { className: 'agnes-btn agnes-btn-ghost' },
-              clipData ? '✅ 已选择视频' : '选择视频素材',
+              clipData ? '已选择视频' : '选择视频素材',
               createElement('input', {
                 type: 'file', accept: 'video/*', style: { display: 'none' },
                 onChange: (e: any) => pickFile(e.target.files?.[0], 'clip'),
@@ -227,14 +227,14 @@ export function AnchorPanel() {
             ),
             createElement('div', { className: 'agnes-keyguide-note', style: { marginTop: '4px' } },
               perSegment
-                ? '⚠️ 每段各生成一段视频，耗时 ≈ 段数 × 2-4 分钟，且按段消耗额度'
+                ? '每段各生成一段视频，耗时 ≈ 段数 × 2-4 分钟，且按段消耗额度'
                 : '整片只生成一段背景画面并循环铺满（快、省额度）'),
           )
         : null,
     ),
 
     createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, '⚙ 参数'),
+      createElement('div', { className: 'agnes-section-title' }, '参数'),
       // 标签与控件成组，避免 flex 换行时把 label 和 select 拆到两行
       createElement('div', { className: 'agnes-param-grid' },
         createElement('label', { className: 'agnes-param' },
@@ -270,7 +270,7 @@ export function AnchorPanel() {
         className: `agnes-btn ${busy ? 'agnes-btn-danger' : 'agnes-btn-primary'}`,
         onClick: busy ? handleStop : handleStart,
         style: { flex: '0 0 auto', minWidth: '200px' },
-      }, busy ? '⏹ 停止生成' : '🎙 开始生成口播视频'),
+      }, busy ? '停止生成' : '开始生成口播视频'),
       busy ? createElement('span', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)' } },
         '生成中…（配音约 3-5 秒/段，AI 画面模式另需 2-4 分钟）') : null,
     ),
@@ -292,7 +292,7 @@ export function AnchorPanel() {
     // 进度
     status && status.status !== 'completed'
       ? createElement('div', { className: 'agnes-section', style: { width: '100%' } },
-          createElement('div', { className: 'agnes-section-title' }, '📊 进度'),
+          createElement('div', { className: 'agnes-section-title' }, '进度'),
           createElement('div', { style: { fontSize: '13px', marginBottom: '6px' } }, status.message),
           createElement('div', { className: 'agnes-progress-bar', style: { width: '100%' } },
             createElement('div', {
@@ -305,10 +305,10 @@ export function AnchorPanel() {
           createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', marginTop: '4px' } },
             `配音 ${status.done}/${status.segments} 段`),
           status.error ? createElement('div', { className: 'agnes-error', style: { marginTop: '8px' } },
-            `❌ ${status.error}`) : null,
+            `${status.error}`) : null,
           status.status === 'failed'
             ? createElement('button', { className: 'agnes-btn', onClick: handleResume, style: { marginTop: '8px' } },
-                '🔄 重新生成')
+                '重新生成')
             : null,
         )
       : null,
@@ -316,7 +316,7 @@ export function AnchorPanel() {
     // 成片
     status?.status === 'completed' && status.final
       ? createElement('div', { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '🎬 成片'),
+          createElement('div', { className: 'agnes-section-title' }, '成片'),
           createElement('video', {
             src: status.final, controls: true,
             style: { width: '100%', borderRadius: '10px', background: '#000' },
@@ -325,7 +325,7 @@ export function AnchorPanel() {
             createElement('a', {
               className: 'agnes-btn', href: status.final, download: `口播-${status.anchor_id}.mp4`,
               style: { textDecoration: 'none' },
-            }, '⬇️ 下载成片'),
+            }, '下载成片'),
             createElement('span', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)' } },
               `${status.segments} 段 · ${Number(status.total_duration || 0).toFixed(1)} 秒`),
           ),

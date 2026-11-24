@@ -114,8 +114,8 @@ export function PanelTitlebar(props: TitlebarProps): unknown {
       className: 'agnes-theme-toggle',
       onClick: onToggleTheme,
       title: theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题',
-    }, theme === 'dark' ? '☀️ 亮色' : '🌙 暗色'),
-    createElement('span', { className: 'agnes-badge agnes-badge-free' }, '🎉 生图/视频免费'),
+    }, theme === 'dark' ? '亮色' : '暗色'),
+    createElement('span', { className: 'agnes-badge agnes-badge-free' }, '生图/视频免费'),
     createElement('button', {
       className: 'agnes-titlebar-btn',
       onClick: onClose,
@@ -142,7 +142,7 @@ export function KeyGuide(props: KeyGuideProps): unknown {
 
   return createElement('div', { className: 'agnes-keyguide' },
     createElement('div', { className: 'agnes-keyguide-head' },
-      createElement('span', { className: 'agnes-keyguide-title' }, '🔑 首次使用：需要一个 Agnes API Key'),
+      createElement('span', { className: 'agnes-keyguide-title' }, '首次使用：需要一个 Agnes API Key'),
       createElement('button', {
         className: 'agnes-keyguide-close',
         onClick: onClose,
@@ -176,20 +176,20 @@ export function KeyGuide(props: KeyGuideProps): unknown {
         href: AGNES_PLATFORM_URL,
         target: '_blank',
         rel: 'noopener noreferrer',
-      }, '🌐 去注册 / 登录'),
+      }, '去注册 / 登录'),
       createElement('a', {
         className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
         href: AGNES_DOCS_URL,
         target: '_blank',
         rel: 'noopener noreferrer',
-      }, '📖 官方文档'),
+      }, '官方文档'),
       createElement('button', {
         className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
         disabled: checkingKey,
         onClick: onRecheck,
-      }, checkingKey ? '⏳ 检测中…' : '🔄 重新检测'),
+      }, checkingKey ? '检测中…' : '重新检测'),
       keyStatus === 'ready'
-        ? createElement('span', { className: 'agnes-keyguide-ok' }, '✅ Key 已配置')
+        ? createElement('span', { className: 'agnes-keyguide-ok' }, 'Key 已配置')
         : null,
     ),
     createElement('div', { className: 'agnes-keyguide-note' },
