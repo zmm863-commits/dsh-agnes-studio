@@ -337,13 +337,12 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
         overflow: 'hidden',
       },
     },
-    renderNewTaskForm(viewVars),
     createElement(
       'div',
       { className: 'agnes-body', style: { flex: 1, minHeight: 0 } },
       renderTaskList(viewVars),
       renderCenter(viewVars),
-      renderRight(viewVars),
+      renderRight(viewVars, renderNewTaskForm(viewVars)),
     ),
     createElement(
       'div',

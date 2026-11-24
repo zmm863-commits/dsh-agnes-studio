@@ -458,16 +458,32 @@ export function renderCenter(v: DramaViewVars): unknown {
     )
 }
 
-export function renderRight(v: DramaViewVars): unknown {
+/**
+ * 右侧参数列。
+ *
+ * @param v - 视图变量。
+ * @param leading - 插在参数列最前面的节点（新建任务表单走这里，让「展示区 | 参数区」
+ *   与生图 / 生视频页保持同一套骨架，而不是在最上面横着摊一条全宽表单）。
+ */
+export function renderRight(v: DramaViewVars, leading?: unknown): unknown {
   const { currentTask, imageModel, imgOpts, prompt, setImageModel, setShotDuration, setTextModel, setVideoModel, shotDuration, textModel, vidOpts, videoModel } = v
 
     if (!currentTask) {
+      // 新建表单已经在参数列最上面了，同一组模型选择再列一遍是纯重复
+      if (leading !== undefined) {
+        return createElement(
+          'div',
+          { className: 'agnes-right' },
+          createElement('div', { className: 'agnes-right-scroll' }, leading),
+        )
+      }
       return createElement(
         'div',
         { className: 'agnes-right' },
         createElement(
           'div',
           { className: 'agnes-right-scroll' },
+          leading ?? null,
           createElement(
             'div',
             { className: 'agnes-section' },
