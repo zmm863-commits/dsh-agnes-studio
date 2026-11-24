@@ -25,6 +25,7 @@ import { GRADIENTS_CSS } from './styles/10-gradients.ts'
 import { MOTION_CSS } from './styles/11-motion.ts'
 import { OVERRIDES_CSS } from './styles/12-overrides.ts'
 import { NEW_PANELS_CSS } from './styles/13-new-panels.ts'
+import { SPATIAL_CSS } from './styles/14-spatial.ts'
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。
@@ -44,6 +45,7 @@ const CSS = [
   MOTION_CSS,
   OVERRIDES_CSS,
   NEW_PANELS_CSS,
+  SPATIAL_CSS,
 ].join('')
 
 

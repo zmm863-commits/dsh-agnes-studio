@@ -84,8 +84,8 @@ function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
     const saved = localStorage?.getItem(THEME_KEY)
     if (saved === 'light' || saved === 'dark') return saved
   } catch { /* ignore */ }
-  // Default to the bright "tech" skin; users can switch to dark in the header.
-  return 'light'
+  // Default to the spatial dark skin (J); light stays available from the header.
+  return 'dark'
 }
 
 type TabType =
