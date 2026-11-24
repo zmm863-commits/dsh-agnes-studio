@@ -716,25 +716,6 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
       createElement(NavRail, {
         tab,
         onSelect: (id) => setTab(id as TabType),
-        // 主操作放进 dock 尾部：这是稿子的位置，也让它永远在拇指/鼠标动线的终点
-        trailing: (tab === 'image' || tab === 'video')
-          ? createElement('div', { className: 'agnes-dock-primary' },
-              createElement('button', {
-                className: 'agnes-btn agnes-btn-ghost agnes-dock-params',
-                onClick: () => {
-                  const next = !paramsOpen
-                  setParamsOpen(next)
-                  try { localStorage?.setItem(PARAMS_OPEN_KEY, next ? '1' : '0') } catch { /* ignore */ }
-                },
-                title: paramsOpen ? '收起参数卡，让画面更大' : '展开参数卡',
-              }, paramsOpen ? '收起参数' : '参数'),
-              createElement('button', {
-                className: 'agnes-btn agnes-btn-primary agnes-dock-go',
-                disabled: loading || !prompt.trim(),
-                onClick: tab === 'image' ? handleGenerateImage : handleGenerateVideo,
-              }, loading ? loadingText : '生成'),
-            )
-          : null,
       }),
       createElement('div', { className: 'agnes-main' },
 

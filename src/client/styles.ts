@@ -32,6 +32,8 @@ import { SPEC_CSS } from './styles/17-spec.ts'
 import { DOCK_CSS } from './styles/18-dock.ts'
 import { DOCK_SLIDE_CSS } from './styles/19-dock-slide.ts'
 import { COMPACT_CSS } from './styles/20-compact.ts'
+import { MOTION_DOCK_CSS } from './styles/21-motion.ts'
+import { STUDIO_CSS } from './styles/22-studio.ts'
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。
@@ -60,6 +62,8 @@ const CSS = [
   DOCK_CSS,
   DOCK_SLIDE_CSS,
   COMPACT_CSS,
+  MOTION_DOCK_CSS,
+  STUDIO_CSS,
 ].join('')
 
 

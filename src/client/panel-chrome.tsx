@@ -198,12 +198,12 @@ export function KeyGuide(props: KeyGuideProps): unknown {
   )
 }
 
-/** 底部 dock：常驻的几个主入口 + 「更多」 + 尾部主操作。 */
+/** 左侧图标栏：全部模块一次列出。 */
 export interface NavRailProps {
   /** 当前页签 id。 */
   tab: string
   onSelect: (id: string) => void
-  /** dock 尾部的主操作（生成按钮等），由面板注入。 */
+  /** 保留位：把主操作注入到栏底（当前由工作区自己承载）。 */
   trailing?: unknown
 }
 
@@ -213,7 +213,7 @@ export interface NavRailProps {
  * 为什么不是全部 16 个：dock 是"动线终点"，塞满之后每一项都变得难瞄；
  * 稿子也是 6 个左右。其余模块收进「更多」浮层，仍然一次点击可达。
  */
-const DOCK_PRIMARY = ['image', 'video', 'storyboard', 'ohstory', 'canvas']
+const DOCK_PRIMARY = MODULES.map(m => m.id)
 
 /** 「更多」浮层里的图标。 */
 const MORE_ICON =
@@ -236,14 +236,12 @@ const MORE_ICON =
  */
 export function NavRail(props: NavRailProps): unknown {
   const { tab, onSelect, trailing } = props
-  const [moreOpen, setMoreOpen] = useState(false)
   const railRef = useRef<HTMLElement | null>(null)
   const drag = useRef({ active: false, startX: 0, scrollLeft: 0, moved: 0 })
 
   const primary = DOCK_PRIMARY
     .map(id => MODULES.find(m => m.id === id))
     .filter((m): m is NavModule => m !== undefined)
-  const rest = MODULES.filter(m => !DOCK_PRIMARY.includes(m.id))
 
   const item = (m: NavModule): unknown => createElement('button', {
     key: m.id,
@@ -251,7 +249,6 @@ export function NavRail(props: NavRailProps): unknown {
     'data-tab': m.id,
     onClick: () => {
       if (drag.current.moved > 4) { drag.current.moved = 0; return }
-      setMoreOpen(false)
       onSelect(m.id)
     },
     title: m.name,
@@ -287,60 +284,51 @@ export function NavRail(props: NavRailProps): unknown {
     setTimeout(() => { drag.current.moved = 0 }, 0)
   }
 
-  // 滚轮：竖向滚动映射成横向滑动，触摸板手势保持原生
-  const onWheel = (event: WheelEvent): void => {
-    const node = railRef.current
-    if (node === null || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
-    if (node.scrollWidth <= node.clientWidth) return
-    node.scrollLeft += event.deltaY
-    event.preventDefault()
-  }
-
+  // 切换页签后把当前项带回视窗内：滑走之后不能让人不知道自己在哪
   useEffect(() => {
-    if (!moreOpen) return undefined
-    const onDown = (event: Event): void => {
-      const target = event.target as HTMLElement | null
-      if (target !== null && target.closest('.agnes-dock-more-wrap') !== null) return
-      setMoreOpen(false)
-    }
-    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') setMoreOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [moreOpen])
+    const frame = requestAnimationFrame(() => {
+      const node = railRef.current
+      if (node === null || node.scrollWidth <= node.clientWidth + 1) return
+      const active = node.querySelector<HTMLElement>('.agnes-rail-item.active')
+      if (active === null) return
+      // offsetLeft 是布局值：面板入场动画的 transform 不会让它失真
+      const itemLeft = active.offsetLeft
+      const viewLeft = node.scrollLeft
+      const inside = itemLeft >= viewLeft - 1 && itemLeft + active.offsetWidth <= viewLeft + node.clientWidth + 1
+      if (inside) return
+      node.scrollTo({
+        left: Math.max(0, itemLeft - (node.clientWidth - active.offsetWidth) / 2),
+        behavior: 'smooth',
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [tab])
 
-  const moreButton = createElement('div', { className: 'agnes-dock-more-wrap' },
-    createElement('button', {
-      className: `agnes-rail-item agnes-dock-more-btn${moreOpen ? ' active' : ''}`,
-      onClick: () => setMoreOpen(!moreOpen),
-      title: '更多模块',
-      'aria-expanded': moreOpen ? 'true' : 'false',
-    },
-      createElement('span', {
-        className: 'agnes-rail-icon',
-        dangerouslySetInnerHTML: { __html: MORE_ICON },
-      }),
-      createElement('span', { className: 'agnes-rail-label' }, '更多'),
-    ),
-    moreOpen
-      ? createElement('div', { className: 'agnes-dock-more' },
-          ...rest.map(m => createElement('button', {
-            key: m.id,
-            className: `agnes-dock-more-item${tab === m.id ? ' active' : ''}`,
-            onClick: () => { setMoreOpen(false); onSelect(m.id) },
-          },
-            createElement('span', {
-              className: 'agnes-dock-more-icon',
-              dangerouslySetInnerHTML: { __html: iconSvg(m.icon, 17) },
-            }),
-            createElement('span', null, m.name),
-          )),
-        )
-      : null,
-  )
+  // 滚轮：一次滚轮 = 一格，把后面的图标"依次"带出来。
+  // 必须用原生监听（React 的 onWheel 在部分环境是 passive，preventDefault 无效）。
+  useEffect(() => {
+    const node = railRef.current
+    if (node === null) return undefined
+    let lockedUntil = 0
+    const onWheel = (event: WheelEvent): void => {
+      // 触摸板的横向手势交给浏览器原生处理
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+      if (node.scrollWidth <= node.clientWidth + 1) return
+      event.preventDefault()
+      const now = Date.now()
+      // 220ms 闸门：一次滚轮手感的"一格"内不重复推进
+      if (now < lockedUntil) return
+      lockedUntil = now + 220
+      const item = node.querySelector<HTMLElement>('.agnes-rail-item')
+      const step = (item?.offsetWidth ?? 58) + 2
+      const max = node.scrollWidth - node.clientWidth
+      const next = node.scrollLeft + (event.deltaY > 0 ? step : -step)
+      node.scrollTo({ left: Math.min(max, Math.max(0, next)), behavior: 'smooth' })
+    }
+    node.addEventListener('wheel', onWheel, { passive: false })
+    return () => { node.removeEventListener('wheel', onWheel) }
+  }, [])
+
 
   return createElement('div', { className: 'agnes-dock-wrap' },
     createElement('nav', {
@@ -353,12 +341,10 @@ export function NavRail(props: NavRailProps): unknown {
       onTouchStart: onPointerDown,
       onTouchMove: onPointerMove,
       onTouchEnd: onPointerUp,
-      onWheel,
     },
       ...primary.map(item),
-      moreButton,
-      trailing ?? null,
     ),
+    trailing ?? null,
   )
 }
 
