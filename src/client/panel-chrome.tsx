@@ -51,6 +51,7 @@ export const MODULE_GROUPS: Array<{ id: string; label: string; items: NavModule[
       { id: 'anchor', icon: '🎙', name: '口播' },
       { id: 'cover', icon: '📕', name: '封面' },
       { id: 'expert', icon: '✨', name: '提示词' },
+      { id: 'vpt', icon: '🔁', name: '转提示词' },
     ],
   },
 ]

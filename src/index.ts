@@ -28,6 +28,10 @@ import {
 import { ffmpegStatus } from './ffmpeg.js'
 import { statSync, createReadStream } from 'node:fs'
 import { VENDOR_BASE_URLS, getVendorFromModel } from './vendors.js'
+import {
+  ALLOWED_FRAME_COUNTS, buildImageMessages, buildVideoMessages, callVisionModel,
+  extractFrames, materializeDataUrl, normalizeTarget, probeDuration,
+} from './vpt-engine.js'
 
 // ═══════════════════════════════════════════════════════════════════════
 // Constants
@@ -393,6 +397,68 @@ export function apply(ctx: Context): void {
         if (method === 'OPTIONS') {
           res.writeHead(204)
           res.end()
+          return
+        }
+
+        // ── VPT：图片 → 提示词 ─────────────────────────────────────────
+        if (path === '/agnes-studio/api/vpt/image' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as {
+              image?: string; target?: string; lang?: string; model?: string
+            }
+            if (!body.image) throw new Error('缺少 image（base64 data URL）')
+            const model = body.model || 'agnes-2.5-flash'
+            const vendor = getVendorFromModel(model)
+            const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+            const baseUrl = VENDOR_BASE_URLS[vendor] || VENDOR_BASE_URLS.agnes
+            const target = normalizeTarget(body.target)
+            const lang = body.lang === 'en' ? 'en' : 'zh'
+            const prompt = await callVisionModel(
+              baseUrl, apiKey, model, buildImageMessages(target, lang, body.image),
+            )
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ prompt, target, model }))
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }))
+          }
+          return
+        }
+
+        // ── VPT：视频 → 提示词 ─────────────────────────────────────────
+        if (path === '/agnes-studio/api/vpt/video' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as {
+              video?: string; frames?: number; target?: string; lang?: string; model?: string
+            }
+            if (!body.video) throw new Error('缺少 video（base64 data URL）')
+            const wantFrames = ALLOWED_FRAME_COUNTS.includes((body.frames ?? 6) as 4 | 6 | 8)
+              ? (body.frames as number) : 6
+            const model = body.model || 'agnes-2.5-flash'
+            const vendor = getVendorFromModel(model)
+            const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+            const baseUrl = VENDOR_BASE_URLS[vendor] || VENDOR_BASE_URLS.agnes
+            const target = normalizeTarget(body.target)
+            const lang = body.lang === 'en' ? 'en' : 'zh'
+            const src = await materializeDataUrl(body.video)
+            try {
+              const duration = await probeDuration(src.path)
+              if (!duration) throw new Error('无法读取视频时长，可能不是有效的视频文件')
+              const frames = await extractFrames(src.path, wantFrames, duration)
+              if (!frames.length) throw new Error('抽帧失败：无法从该视频读出任何帧')
+              const prompt = await callVisionModel(
+                baseUrl, apiKey, model,
+                buildVideoMessages(frames.length, duration, target, lang, frames),
+              )
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ prompt, target, model, frames: frames.length, duration }))
+            } finally {
+              await src.cleanup()
+            }
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }))
+          }
           return
         }
 

@@ -28,6 +28,7 @@ import { NovelSplitPanel } from './novel-split-panel.tsx'
 import { ToolboxPanel } from './toolbox-panel.tsx'
 import { VideoparsePanel } from './videoparse-panel.tsx'
 import { WechatPanel } from './wechat-panel.tsx'
+import { VptPanel } from './vpt-panel.tsx'
 
 /**
  * Mount a component into a container with React 18's createRoot.
@@ -93,6 +94,7 @@ type TabType =
   | 'anchor' | 'canvas' | 'cover'
   | 'expert' | 'models' | 'settings'
   | 'ohstory' | 'bgvideo' | 'mv' | 'novel-split' | 'toolbox' | 'videoparse' | 'wechat'
+  | 'vpt'
 
 
 
@@ -723,7 +725,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
       ? createElement('div', { style: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } },
           createElement(CanvasPanel, { textModels: TEXT_MODEL_OPTIONS, imageModels, videoModels }),
         )
-      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover' || tab === 'models' || tab === 'ohstory' || tab === 'bgvideo' || tab === 'mv' || tab === 'novel-split' || tab === 'toolbox' || tab === 'videoparse' || tab === 'wechat')
+      : (tab === 'expert' || tab === 'settings' || tab === 'anchor' || tab === 'cover' || tab === 'models' || tab === 'ohstory' || tab === 'bgvideo' || tab === 'mv' || tab === 'novel-split' || tab === 'toolbox' || tab === 'videoparse' || tab === 'wechat' || tab === 'vpt')
       // Full-width panels
       ? createElement('div', { style: { flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' } },
           tab === 'expert'
@@ -748,6 +750,8 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
                           ? createElement(VideoparsePanel)
                           : tab === 'wechat'
                             ? createElement(WechatPanel)
+                            : tab === 'vpt'
+                              ? createElement(VptPanel, { textModels: TEXT_MODEL_OPTIONS })
                             : tab === 'cover'
                               ? createElement(CoverPanel, { imageModels })
                               : createElement(SettingsTab, {
