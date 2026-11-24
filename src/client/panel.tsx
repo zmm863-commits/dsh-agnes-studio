@@ -16,6 +16,7 @@ import { AnchorPanel } from './anchor-panel.tsx'
 import { CanvasPanel } from './canvas-panel.tsx'
 import { CoverPanel } from './cover-panel.tsx'
 import { SettingsTab, AddModelModal } from './settings-tab.tsx'
+import { ModelConfigPanel } from './model-config-panel.tsx'
 import { PanelTitlebar, KeyGuide, NavRail } from './panel-chrome.tsx'
 import { ImageVideoWorkspace } from './image-video-workspace.tsx'
 import {
@@ -773,21 +774,7 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
                               ? createElement(VptPanel, { textModels: TEXT_MODEL_OPTIONS })
                             : tab === 'cover'
                               ? createElement(CoverPanel, { imageModels })
-                              : createElement(SettingsTab, {
-                                  vendorStatus,
-                                  checkingKey,
-                                  onRecheckKey: () => { void checkKey(false) },
-                                  guideOpen,
-                                  onToggleGuide: () => setGuideOpen(!guideOpen),
-                                  keyStatus,
-                                  // 模型清单已并入设置页（原「配置 → 模型」独立页撤掉）
-                                  textModels: TEXT_MODEL_OPTIONS,
-                                  imageModels,
-                                  videoModels,
-                                  customModels,
-                                  onOpenAddModel: () => setShowAddModelModal(true),
-                                  onRemoveCustomModel: handleRemoveCustomModel,
-                                })
+                              : createElement(ModelConfigPanel, {})
         )
       // Three-column layout (image / video / storyboard)
       : createElement(ImageVideoWorkspace, {

@@ -36,6 +36,7 @@ import { MOTION_DOCK_CSS } from './styles/21-motion.ts'
 import { STUDIO_CSS } from './styles/22-studio.ts'
 import { DOCK_BOTTOM_CSS } from './styles/23-dock-bottom.ts'
 import { UNIFY_CSS } from './styles/24-unify.ts'
+import { MCFG_CSS } from './styles/25-mcfg.ts'
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。
@@ -68,6 +69,7 @@ const CSS = [
   STUDIO_CSS,
   DOCK_BOTTOM_CSS,
   UNIFY_CSS,
+  MCFG_CSS,
 ].join('')
 
 

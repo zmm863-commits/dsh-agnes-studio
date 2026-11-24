@@ -29,6 +29,11 @@ import { ffmpegStatus } from './ffmpeg.js'
 import { statSync, createReadStream } from 'node:fs'
 import { VENDOR_BASE_URLS, getVendorFromModel } from './vendors.js'
 import {
+  KNOWN_VENDORS, configFilePath, describeVendors, findCustomModel, loadModelConfig,
+  normalizeCustomModel, probeEndpoint, resolveKeyWithConfig, saveModelConfig, vendorBaseUrl,
+  type CustomModelConfig, type ModelConfigFile,
+} from './model-config-engine.js'
+import {
   ALLOWED_FRAME_COUNTS, buildImageMessages, buildVideoMessages, callVisionModel,
   extractFrames, materializeDataUrl, normalizeTarget, probeDuration,
 } from './vpt-engine.js'
@@ -114,9 +119,28 @@ export function buildUpstreamUrl(baseUrl: string, endpoint: string): string {
  * Resolve the API key for a specific vendor.
  * Priority: vendor-specific credential → vendor-specific env → Agnes fallback → error.
  */
-async function resolveApiKeyForVendor(ctx: Context, vendor: string): Promise<string> {
+async function resolveApiKeyForVendor(ctx: Context, vendor: string, modelId = ''): Promise<string> {
   // Ollama doesn't need a key
   if (vendor === 'ollama') return 'ollama'
+
+  // 0. 插件自己的模型配置（「设置 → 模型配置」里填的，或自定义模型自带的 Key）。
+  //    放在最前面：用户刚在面板里填的 Key 必须立刻生效，不能等重启。
+  try {
+    const resolved = await resolveKeyWithConfig(
+      loadModelConfig(),
+      vendor,
+      modelId,
+      async (key) => {
+        const value = await ctx.credentials.resolve(key)
+        return typeof value === 'string' && value.length > 0 ? value : undefined
+      },
+    )
+    return resolved.key
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('API Key 未配置')) throw error
+    // 配置读取/解析出问题不该挡住后面凭据与环境变量的正常路径
+  }
 
   // 1. Try vendor-specific credential
   const credentialKey = `${vendor}-api-key`
@@ -490,12 +514,177 @@ export function apply(ctx: Context): void {
           if (method !== 'GET' && method !== 'POST') {
             return textResponse(res, 405, 'method not allowed')
           }
+          // 用户自定义模型并入清单（同名时以用户配置为准）
+          const cfg = loadModelConfig()
+          const merge = (
+            base: Record<string, string>,
+            kind: 'text' | 'image' | 'video',
+          ): Record<string, string> => {
+            const out: Record<string, string> = { ...base }
+            for (const model of cfg.customModels) {
+              if (model.kind === kind) out[model.id] = `${model.name}（自定义）`
+            }
+            return out
+          }
           jsonResponse(res, 200, {
-            textModels: TEXT_MODEL_OPTIONS,
-            imageModels: IMAGE_MODEL_OPTIONS,
-            videoModels: VIDEO_MODEL_OPTIONS,
+            textModels: merge(TEXT_MODEL_OPTIONS, 'text'),
+            imageModels: merge(IMAGE_MODEL_OPTIONS, 'image'),
+            videoModels: merge(VIDEO_MODEL_OPTIONS, 'video'),
             imageSizes: DEFAULT_IMAGE_SIZES,
           })
+          return
+        }
+
+        // ── 模型配置（厂商密钥 / 自定义模型）────────────────────────────
+        // 这是「设置 → 模型配置」的后端。别处一律不落明文密钥到浏览器：
+        // 读接口只返回打码形态，写接口只收不还。
+        if (path === '/agnes-studio/api/model-config' && method === 'GET') {
+          try {
+            const config = loadModelConfig()
+            const credentialResolver = async (key: string): Promise<string | undefined> => {
+              const value = await ctx.credentials.resolve(key)
+              return typeof value === 'string' && value.length > 0 ? value : undefined
+            }
+            const vendors = await describeVendors(config, credentialResolver)
+
+            // DSH 自己配置好的厂商与模型：只读展示，让用户知道"这里还有一份"，
+            // 避免以为插件没读到他填的 Key。
+            let dsh: { available: boolean; providers: Array<{ id: string; models: string[] }> } = { available: false, providers: [] }
+            const llm = (ctx as unknown as { llm?: { listProviders?: () => Array<{ name?: string; id?: string }>; listModels?: (p: string) => Promise<Array<{ id: string; name?: string }>> } }).llm
+            if (llm !== undefined && typeof llm.listProviders === 'function') {
+              try {
+                const providers = llm.listProviders()
+                const rows: Array<{ id: string; models: string[] }> = []
+                for (const provider of providers) {
+                  const id = String(provider.name ?? provider.id ?? '')
+                  if (id === '') continue
+                  let models: string[] = []
+                  if (typeof llm.listModels === 'function') {
+                    try {
+                      const list = await llm.listModels(id)
+                      models = list.map(m => m.id).slice(0, 40)
+                    } catch { /* 某个 provider 查不到模型不影响整体 */ }
+                  }
+                  rows.push({ id, models })
+                }
+                dsh = { available: true, providers: rows }
+              } catch { /* DSH 没暴露 llm 服务就当作不可用 */ }
+            }
+
+            jsonResponse(res, 200, {
+              configPath: configFilePath(),
+              vendors,
+              customModels: config.customModels.map(m => ({
+                id: m.id, name: m.name, kind: m.kind, baseUrl: m.baseUrl,
+                vendor: m.vendor ?? 'custom',
+                hasKey: m.apiKey !== undefined && m.apiKey !== '',
+                maskedKey: m.apiKey === undefined ? '' : m.apiKey.slice(0, 4) + '****',
+              })),
+              dsh,
+            })
+          } catch (error) {
+            jsonResponse(res, 500, { error: error instanceof Error ? error.message : String(error) })
+          }
+          return
+        }
+
+        if (path === '/agnes-studio/api/model-config/vendor' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as {
+              vendor?: string; apiKey?: string; baseUrl?: string; note?: string; clearKey?: boolean
+            }
+            const vendor = String(body.vendor ?? '')
+            if (!(KNOWN_VENDORS as readonly string[]).includes(vendor)) {
+              jsonResponse(res, 400, { error: '未知厂商：' + vendor })
+              return
+            }
+            const config = loadModelConfig()
+            const current = config.vendors[vendor] ?? {}
+            if (body.clearKey === true) delete current.apiKey
+            else if (body.apiKey !== undefined && body.apiKey !== '') current.apiKey = String(body.apiKey).trim()
+            if (body.baseUrl !== undefined) {
+              const url = String(body.baseUrl).trim()
+              if (url !== '' && !/^https?:\/\//i.test(url)) {
+                jsonResponse(res, 400, { error: 'Base URL 必须以 http:// 或 https:// 开头' })
+                return
+              }
+              if (url === '') delete current.baseUrl
+              else current.baseUrl = url.replace(/\/+$/, '')
+            }
+            if (body.note !== undefined) current.note = String(body.note)
+            config.vendors[vendor] = current
+            saveModelConfig(config)
+            jsonResponse(res, 200, { ok: true })
+          } catch (error) {
+            jsonResponse(res, 500, { error: error instanceof Error ? error.message : String(error) })
+          }
+          return
+        }
+
+        if (path === '/agnes-studio/api/model-config/custom' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as Partial<CustomModelConfig>
+            const model = normalizeCustomModel(body)
+            const config = loadModelConfig()
+            config.customModels = config.customModels.filter(m => m.id !== model.id)
+            config.customModels.push(model)
+            saveModelConfig(config)
+            jsonResponse(res, 200, { ok: true, model: { ...model, apiKey: undefined } })
+          } catch (error) {
+            jsonResponse(res, 400, { error: error instanceof Error ? error.message : String(error) })
+          }
+          return
+        }
+
+        if (path === '/agnes-studio/api/model-config/remove' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as { id?: string; vendor?: string }
+            const config = loadModelConfig()
+            if (body.vendor !== undefined && body.vendor !== '') {
+              delete config.vendors[body.vendor]
+            }
+            if (body.id !== undefined && body.id !== '') {
+              config.customModels = config.customModels.filter(m => m.id !== body.id)
+            }
+            saveModelConfig(config)
+            jsonResponse(res, 200, { ok: true })
+          } catch (error) {
+            jsonResponse(res, 500, { error: error instanceof Error ? error.message : String(error) })
+          }
+          return
+        }
+
+        if (path === '/agnes-studio/api/model-config/test' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as {
+              vendor?: string; modelId?: string; baseUrl?: string; apiKey?: string
+            }
+            const config = loadModelConfig()
+            const vendor = String(body.vendor ?? 'agnes')
+            const modelId = String(body.modelId ?? '')
+            const custom = modelId !== '' ? findCustomModel(config, modelId) : undefined
+            const baseUrl = body.baseUrl !== undefined && body.baseUrl !== ''
+              ? String(body.baseUrl)
+              : (custom?.baseUrl ?? vendorBaseUrl(config, vendor))
+            // 没显式传 Key 时按「实际调用会用的那一把」来测，测出来的结果才作数
+            let apiKey = body.apiKey !== undefined && body.apiKey !== '' ? String(body.apiKey) : ''
+            if (apiKey === '') {
+              try {
+                apiKey = await resolveApiKeyForVendor(ctx, vendor, modelId)
+              } catch (error) {
+                jsonResponse(res, 200, {
+                  ok: false,
+                  detail: error instanceof Error ? error.message : String(error),
+                  baseUrl,
+                })
+                return
+              }
+            }
+            const result = await probeEndpoint(baseUrl, apiKey, modelId)
+            jsonResponse(res, 200, { ...result, baseUrl })
+          } catch (error) {
+            jsonResponse(res, 500, { error: error instanceof Error ? error.message : String(error) })
+          }
           return
         }
 
@@ -549,9 +738,13 @@ export function apply(ctx: Context): void {
             }
 
             // Resolve vendor: explicit > from model name > default agnes
-            const vendor = parsed.vendor || getVendorFromModel(parsed.model || '')
-            const apiKey = await resolveApiKeyForVendor(ctx, vendor)
-            const baseUrl = getVendorBaseUrl(vendor, customUrl)
+            const modelId = parsed.model || ''
+            const config = loadModelConfig()
+            const customModel = modelId !== '' ? findCustomModel(config, modelId) : undefined
+            const vendor = parsed.vendor || customModel?.vendor || getVendorFromModel(modelId)
+            const apiKey = await resolveApiKeyForVendor(ctx, vendor, modelId)
+            // 自定义模型自带端点；否则用厂商配置（用户覆盖优先），最后才是调用方显式指定的 URL
+            const baseUrl = customModel?.baseUrl ?? customUrl ?? vendorBaseUrl(config, vendor)
 
             // Join without duplicating the version segment (see buildUpstreamUrl)
             const url = buildUpstreamUrl(baseUrl, endpoint)
