@@ -214,3 +214,77 @@ export const SPATIAL_CSS_2 = `
   color: #eef0f7;
 }
 `
+
+/* ── 第三轮：区块标题、分隔线、引用 chip、进度、空状态 ─────────────── */
+
+export const SPATIAL_CSS_3 = `
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-section-title {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(238, 240, 247, 0.42);
+  font-weight: 500;
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-section {
+  border-radius: 16px;
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+}
+
+/* 参考图 chip：玻璃胶囊 */
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-ref-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(238, 240, 247, 0.72);
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-ref-chip-add {
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  color: rgba(238, 240, 247, 0.5);
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-ref-chip-add:hover {
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #eef0f7;
+}
+
+/* 进度条：唯一允许的第二处渐变 */
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-progress-bar {
+  height: 5px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-progress-fill {
+  border-radius: 99px;
+  background: linear-gradient(100deg, #818cf8, #22d3ee);
+  box-shadow: 0 0 12px -2px rgba(129, 140, 248, 0.75);
+}
+
+/* 空状态：压低噪音，图标用玻璃圆底 */
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-empty-icon {
+  color: rgba(238, 240, 247, 0.28);
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-empty-title {
+  color: rgba(238, 240, 247, 0.62);
+  font-weight: 500;
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] .agnes-empty-desc {
+  color: rgba(238, 240, 247, 0.38);
+}
+
+/* 面板进入：淡入 + 轻微上浮，比原来的纯透明度更有"浮起"感 */
+@keyframes ag-spatial-enter {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(0.99); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+[data-ag-theme="dark"][data-dsh-agnes-studio] {
+  animation: ag-spatial-enter 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ag-theme="dark"][data-dsh-agnes-studio] { animation: none; }
+}
+`
