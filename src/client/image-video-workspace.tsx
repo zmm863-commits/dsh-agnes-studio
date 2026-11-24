@@ -240,18 +240,8 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
                 ),
       ),
 
-      // 展示区底部：主操作（生成）+ 参数开关 + 次要动作
-      createElement('div', { className: 'agnes-action-bar' },
-        createElement('button', {
-          className: 'agnes-btn agnes-btn-primary',
-          disabled: loading || !prompt.trim(),
-          onClick: tab === 'image' ? onGenerateImage : onGenerateVideo,
-        }, loading ? loadingText : tab === 'image' ? '生成图片' : '生成视频'),
-        isMedia ? createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-          onClick: onToggleParams,
-          title: paramsOpen ? '收起参数区，让画面更大' : '展开参数区',
-        }, paramsOpen ? '收起参数' : '参数区') : null,
+      // 展示区底部：次要动作与状态（生成与参数开关在 dock 上）
+      (result || loading || (isMedia && project) || notice || error) ? createElement('div', { className: 'agnes-action-bar' },
         (isMedia && project) ? createElement('button', {
           className: 'agnes-btn agnes-btn-secondary',
           disabled: loading,
@@ -272,7 +262,7 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
         error ? createElement('div', {
           style: { marginLeft: 'auto', fontSize: '12px', color: '#ff6b6b' },
         }, error) : null,
-      ),
+      ) : null,
 
       // ── 生成历史：缩略图带走马灯，点击回看 ──
       history.length > 0 ? createElement('div', {
