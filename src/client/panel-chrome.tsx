@@ -198,11 +198,13 @@ export function KeyGuide(props: KeyGuideProps): unknown {
   )
 }
 
-/** 左侧导航 rail。 */
+/** 底部 dock：模块入口 + 尾部主操作。 */
 export interface NavRailProps {
   /** 当前页签 id。 */
   tab: string
   onSelect: (id: string) => void
+  /** dock 尾部的主操作（生成按钮等），由面板注入。 */
+  trailing?: unknown
 }
 
 /**
@@ -210,7 +212,7 @@ export interface NavRailProps {
  * @param props - 数据与回调。
  */
 export function NavRail(props: NavRailProps): unknown {
-  const { tab, onSelect } = props
+  const { tab, onSelect, trailing } = props
 
   const item = (m: NavModule): unknown => createElement('button', {
     key: m.id,
@@ -238,5 +240,6 @@ export function NavRail(props: NavRailProps): unknown {
     ...MODULE_GROUPS.map(g => group(g.id, g.label, g.items)),
     createElement('div', { className: 'agnes-rail-spacer' }),
     group(CONFIG_GROUP.id, CONFIG_GROUP.label, CONFIG_GROUP.items),
+    trailing ?? null,
   )
 }

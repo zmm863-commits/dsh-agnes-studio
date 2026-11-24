@@ -240,13 +240,9 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
                 ),
       ),
 
-      createElement('div', { className: 'agnes-action-bar' },
-        createElement('button', {
-          className: 'agnes-btn agnes-btn-primary',
-          disabled: loading || !prompt.trim() || tab === 'settings',
-          onClick: tab === 'image' ? onGenerateImage : onGenerateVideo,
-        }, loading ? `${loadingText}` : tab === 'image' ? '生成图片' : '生成视频'),
-        isMedia && project ? createElement('button', {
+      // action-bar 只在有次要动作或状态时出现；主操作（生成）与参数开关都在 dock 上
+      (result || loading || (isMedia && project) || notice || error) ? createElement('div', { className: 'agnes-action-bar' },
+        (isMedia && project) ? createElement('button', {
           className: 'agnes-btn agnes-btn-secondary',
           disabled: loading,
           onClick: onBatchGenerate,
@@ -260,18 +256,13 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
           onClick: onCancel,
           title: '停止等待（平台侧任务可能仍在生成）',
         }, '停止') : null,
-        isMedia ? createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-ghost',
-          onClick: onToggleParams,
-          title: paramsOpen ? '收起参数栏，让预览更大' : '展开参数栏',
-        }, paramsOpen ? '⇥ 收起参数' : '⇤ 参数栏') : null,
         notice ? createElement('div', {
           style: { marginLeft: 'auto', fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)' },
         }, notice) : null,
         error ? createElement('div', {
           style: { marginLeft: 'auto', fontSize: '12px', color: '#ff6b6b' },
         }, error) : null,
-      ),
+      ) : null,
 
       // ── 生成历史：缩略图带走马灯，点击回看 ──
       history.length > 0 ? createElement('div', {
