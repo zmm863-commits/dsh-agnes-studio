@@ -406,7 +406,10 @@ export function apply(ctx: Context): void {
             const body = JSON.parse(await readBody(req)) as {
               image?: string; target?: string; lang?: string; model?: string
             }
-            if (!body.image) throw new Error('缺少 image（base64 data URL）')
+            if (!body.image) {
+              jsonResponse(res, 400, { error: '缺少 image（base64 data URL）' })
+              return
+            }
             const model = body.model || 'agnes-2.5-flash'
             const vendor = getVendorFromModel(model)
             const apiKey = await resolveApiKeyForVendor(ctx, vendor)
@@ -431,7 +434,10 @@ export function apply(ctx: Context): void {
             const body = JSON.parse(await readBody(req)) as {
               video?: string; frames?: number; target?: string; lang?: string; model?: string
             }
-            if (!body.video) throw new Error('缺少 video（base64 data URL）')
+            if (!body.video) {
+              jsonResponse(res, 400, { error: '缺少 video（base64 data URL）' })
+              return
+            }
             const wantFrames = ALLOWED_FRAME_COUNTS.includes((body.frames ?? 6) as 4 | 6 | 8)
               ? (body.frames as number) : 6
             const model = body.model || 'agnes-2.5-flash'

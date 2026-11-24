@@ -395,9 +395,20 @@ if (entry !== null) {
   check('panel never asks the slot runtime for a retired Oh Story seat',
     suiteSlotCalls.every(([name]) => !RETIRED_SLOTS.includes(name)),
     JSON.stringify(suiteSlotCalls))
-  check('panel seat declares our own session-scoped child slot',
-    seat?.spec?.children?.['agnes.workspace']?.scope === 'session',
+  // 回归：`shell.overlay` 是 root 作用域，**绝不能**在这里再声明 session 作用域的子槽。
+  // DSH 的槽运行时对此是硬报错（strict session slot … rendered without a scope binding），
+  // 表现是面板一点开就整片空白 —— v0.6.0 起就踩过这个坑。
+  check('panel seat declares no session-scoped child slot (root parent)',
+    !Object.values(seat?.spec?.children ?? {}).some(child => child?.scope === 'session'),
     JSON.stringify(seat?.spec?.children))
+  // 发送通道改为向会话作用域的 list 槽挂一个无渲染占用者。
+  const bridge = slotRegistrations.find(r => r.spec?.id === 'agnes-studio-session-bridge')
+  check('session bridge occupies the conversation actions list slot',
+    bridge?.spec?.name === 'conversation.session.header.actions',
+    JSON.stringify(bridge?.spec))
+  check('panel seat no longer renders a slot child',
+    suiteSlotCalls.every(([name]) => name !== 'agnes.workspace'),
+    JSON.stringify(suiteSlotCalls))
 
   // Source-level regressions. The React stub never invokes the component, so
   // naming/tree assertions read the shipped bundle itself.

@@ -19,7 +19,7 @@
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import { injectStyles } from './styles.ts'
-import { AgnesSeat, AgnesWorkspace } from './seat.tsx'
+import { AgnesSeat, SessionBridge } from './seat.tsx'
 import { hidePanel, isPanelVisible, subscribePanel, togglePanel } from './panel-state.ts'
 
 /** Required services. */
@@ -47,12 +47,56 @@ interface SlotService {
 /** Slot this panel occupies. */
 const SHELL_OVERLAY = 'shell.overlay'
 
-/** 会话作用域的子槽：只有这种槽的 inject 才会收到 sessionId。 */
-const WORKSPACE_SLOT = 'agnes.workspace'
+/**
+ * 会话作用域的 list 槽：我们在这里挂一个**无渲染**的占用者，
+ * 只为拿 inject(sessionId)，把"往当前会话发消息"的能力发布给面板。
+ * 会话头部真正的动作按钮不受影响（list 槽是叠加的，不是替换）。
+ */
+const SESSION_ACTIONS_SLOT = 'conversation.session.header.actions'
 
 /** Sidebar entry icon (16px nav-icon look). */
 const SIDEBAR_ICON =
   '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2.5"/><path d="M4 8.5l2.5 2.5L12 5.5"/></svg>'
+
+/**
+ * 把一段文本发进指定会话。
+ *
+ * 走 `ctx.sessions.retain()`（ISessions 的公开面）拿会话作用域，
+ * 再从它的 ctx 上取 conversation 服务 —— 旧实现用的 `sessions.binding(id)`
+ * 在现行 ISessions 上并不存在，所以那条通道其实一直是空的。
+ * 任何一步失败都只吞掉并告警：面板不能因为发不出去而崩。
+ */
+function sendIntoSession(ctx: ClientContext, sessionId: string, text: string): void {
+  if (text.trim() === '') return
+  const sessions = (ctx as unknown as {
+    sessions?: {
+      retain?: (id: string, options: { source: string }) => {
+        binding?: { ctx?: { get?: (key: string) => unknown } }
+        release?: () => void
+      }
+    }
+  }).sessions
+  if (typeof sessions?.retain !== 'function') {
+    console.warn('[dsh-agnes-studio] sessions service unavailable; task not sent')
+    return
+  }
+  let released = false
+  try {
+    const reference = sessions.retain(sessionId, { source: 'gateway' })
+    try {
+      const conversation = reference.binding?.ctx?.get?.('conversation') as { send?: (t: string) => unknown } | undefined
+      if (typeof conversation?.send === 'function') void conversation.send(text)
+      else console.warn('[dsh-agnes-studio] conversation service unavailable; task not sent')
+    } finally {
+      reference.release?.()
+      released = true
+    }
+  } catch (error) {
+    console.warn('[dsh-agnes-studio] failed to send task into session:', error)
+  } finally {
+    if (!released) { /* nothing else to release */ }
+  }
+}
 
 /**
  * Register the panel seat, then mount the sidebar entry that toggles it.
@@ -65,39 +109,32 @@ export function apply(ctx: ClientContext): void {
   const slots = (ctx as unknown as { slots: SlotService }).slots
 
   // ── The panel seat ──────────────────────────────────────────────────
-  // This registration is ALSO the single declaration of the private slot that
-  // carries the Oh Story workbench seat (a child slot may be declared exactly
-  // once — see build.mjs). The seat asks for it at render time.
-  // ① 面板座位。这里**同时**声明一个会话作用域的子槽 ——
-  //    原因是 inject(sessionId) 只在 scope: 'session' 的槽上才会收到 sessionId，
-  //    而 shell.overlay 不是会话作用域（Oh Story 用的是同一套结构）。
+  // ① 面板座位。`shell.overlay` 是 root 作用域，所以**不能**在这里声明
+  //    session 作用域的子槽：DSH 的槽运行时对此是硬报错
+  //    （strict session slot … rendered without a scope binding），
+  //    面板会整片空白。发送通道改走 ② 的独立占用者，见 panel-bridge.ts。
   ctx.effect(
     () => slots.inject(SHELL_OVERLAY, () => slots.register({
       name: SHELL_OVERLAY,
       id: 'agnes-studio',
       order: 100,
-      children: { [WORKSPACE_SLOT]: { kind: 'single', scope: 'session' } },
     }, AgnesSeat)),
     'dsh-agnes-studio: panel seat',
   )
 
-  // ② 会话作用域的子槽：DSH 会把当前会话的 sessionId 传进来，
-  //    据此换出 conversation，把「发一条提示词」包成 sendTask 交给面板。
+  // ② 发送通道：挂在会话头部的 actions list 槽上，渲染 null。
+  //    slots.inject 会等这个槽被别的插件声明出来；没有会话界面时它就静静等着，
+  //    面板照常可用，只是"发送到会话"按钮是禁用态。
   ctx.effect(
-    () => slots.register({
-      name: WORKSPACE_SLOT,
-      inject: (sessionId: string) => {
-        const sessions = (ctx as unknown as { sessions?: { binding?: (id: string) => { ctx?: { get?: (k: string) => unknown } } | undefined } }).sessions
-        const binding = sessions?.binding?.(sessionId)
-        const conversation = binding?.ctx?.get?.('conversation') as { send?: (text: string) => unknown } | undefined
-        return {
-          sendTask: typeof conversation?.send === 'function'
-            ? (text: string) => { void conversation.send?.(text) }
-            : undefined,
-        }
-      },
-    }, AgnesWorkspace),
-    'dsh-agnes-studio: session-scoped workspace slot',
+    () => slots.inject(SESSION_ACTIONS_SLOT, () => slots.register({
+      name: SESSION_ACTIONS_SLOT,
+      id: 'agnes-studio-session-bridge',
+      order: 900,
+      inject: (sessionId: string) => ({
+        sendTask: (text: string) => { sendIntoSession(ctx, sessionId, text) },
+      }),
+    }, SessionBridge)),
+    'dsh-agnes-studio: session bridge',
   )
 
   // ── Sidebar entry (self-healing DOM injection) ──────────────────────

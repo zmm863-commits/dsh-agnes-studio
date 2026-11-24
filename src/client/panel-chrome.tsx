@@ -8,11 +8,12 @@
  * 「导航顺序」只有一个来源（此前两处依赖同一个数组，改一处容易忘另一处）。
  */
 import { createElement } from './react-shim.ts'
+import { iconSvg } from './icons.ts'
 import { AGNES_DOCS_URL, AGNES_PLATFORM_URL, PANEL_SIZE_LABEL, PRODUCT_NAME, type PanelSize } from './constants.ts'
 import type { KeyStatus } from './studio.ts'
 
 /** 左侧导航的模块定义（数组顺序即界面顺序）。 */
-/** 一个导航项。 */
+/** 一个导航项。`icon` 是 icons.ts 里的图标名（不是 emoji）。 */
 export interface NavModule {
   id: string
   icon: string
@@ -31,27 +32,27 @@ export const MODULE_GROUPS: Array<{ id: string; label: string; items: NavModule[
     id: 'generate',
     label: '生成',
     items: [
-      { id: 'image', icon: '🎨', name: '生图' },
-      { id: 'video', icon: '🎬', name: '生视频' },
+      { id: 'image', icon: 'image', name: '生图' },
+      { id: 'video', icon: 'video', name: '生视频' },
     ],
   },
   {
     id: 'create',
     label: '创作',
     items: [
-      { id: 'ohstory', icon: '✍️', name: '创作台' },
-      { id: 'storyboard', icon: '📖', name: '短剧' },
-      { id: 'bgvideo', icon: '🎬', name: '背景视频' },
-      { id: 'mv', icon: '🎵', name: 'MTV' },
-      { id: 'novel-split', icon: '📖', name: '小说工具' },
-      { id: 'toolbox', icon: '🧰', name: '多能宝箱' },
-      { id: 'videoparse', icon: '🎬', name: '视频解析' },
-      { id: 'wechat', icon: '📱', name: '公众号' },
-      { id: 'canvas', icon: '🕸', name: '画布' },
-      { id: 'anchor', icon: '🎙', name: '口播' },
-      { id: 'cover', icon: '📕', name: '封面' },
-      { id: 'expert', icon: '✨', name: '提示词' },
-      { id: 'vpt', icon: '🔁', name: '转提示词' },
+      { id: 'ohstory', icon: 'ohstory', name: '创作台' },
+      { id: 'storyboard', icon: 'storyboard', name: '短剧' },
+      { id: 'bgvideo', icon: 'bgvideo', name: '背景视频' },
+      { id: 'mv', icon: 'mv', name: 'MTV' },
+      { id: 'novel-split', icon: 'novel', name: '小说工具' },
+      { id: 'toolbox', icon: 'toolbox', name: '多能宝箱' },
+      { id: 'videoparse', icon: 'videoparse', name: '视频解析' },
+      { id: 'wechat', icon: 'wechat', name: '公众号' },
+      { id: 'canvas', icon: 'canvas', name: '画布' },
+      { id: 'anchor', icon: 'anchor', name: '口播' },
+      { id: 'cover', icon: 'cover', name: '封面' },
+      { id: 'expert', icon: 'expert', name: '提示词' },
+      { id: 'vpt', icon: 'vpt', name: '转提示词' },
     ],
   },
 ]
@@ -61,7 +62,7 @@ export const CONFIG_GROUP: { id: string; label: string; items: NavModule[] } = {
   id: 'config',
   label: '配置',
   items: [
-    { id: 'settings', icon: '⚙', name: '设置' },
+    { id: 'settings', icon: 'settings', name: '设置' },
   ],
 }
 
@@ -97,7 +98,10 @@ export function PanelTitlebar(props: TitlebarProps): unknown {
     className: 'agnes-titlebar',
     onMouseDown: onDragStart,
   },
-    createElement('span', { className: 'agnes-titlebar-icon' }, '🎬'),
+    createElement('span', {
+      className: 'agnes-titlebar-icon',
+      dangerouslySetInnerHTML: { __html: iconSvg('video', 16) },
+    }),
     createElement('span', { className: 'agnes-titlebar-text' }, PRODUCT_NAME),
     createElement('span', { className: 'agnes-titlebar-module' }, moduleName),
     createElement('div', { className: 'agnes-titlebar-spacer' }),
@@ -105,7 +109,7 @@ export function PanelTitlebar(props: TitlebarProps): unknown {
       className: 'agnes-size-toggle',
       onClick: onCycleSize,
       title: `面板尺寸：${PANEL_SIZE_LABEL[panelSize]}（点击切换紧凑 / 标准 / 全屏）`,
-    }, `🪟 ${PANEL_SIZE_LABEL[panelSize]}`),
+    }, PANEL_SIZE_LABEL[panelSize]),
     createElement('button', {
       className: 'agnes-theme-toggle',
       onClick: onToggleTheme,
@@ -215,7 +219,10 @@ export function NavRail(props: NavRailProps): unknown {
     onClick: () => onSelect(m.id),
     title: m.name,
   },
-    createElement('span', { className: 'agnes-rail-icon' }, m.icon),
+    createElement('span', {
+      className: 'agnes-rail-icon',
+      dangerouslySetInnerHTML: { __html: iconSvg(m.icon, 18) },
+    }),
     createElement('span', { className: 'agnes-rail-label' }, m.name),
   )
 

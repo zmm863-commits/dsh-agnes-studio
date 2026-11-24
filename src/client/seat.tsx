@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, createElement } from './react-shim.ts'
 
 import { StudioPanel } from './panel.tsx'
 import { hidePanel, isPanelVisible, subscribePanel } from './panel-state.ts'
+import { getPanelSender, setPanelSender, subscribePanelSender } from './panel-bridge.ts'
 
 /** Props the slot runtime hands to an occupant of `shell.overlay`. */
 export interface SeatProps {
@@ -25,28 +26,29 @@ export interface SeatProps {
 }
 
 /**
- * The studio panel seat.
+ * 往当前会话发消息的**无渲染**占用者。
  *
- * @param props - slot host props; `renderSlot` is required for the creative suite.
+ * 它注册在 `conversation.session.header.actions`（会话作用域的 list 槽）上，
+ * 唯一职责是把 `inject(sessionId)` 拿到的发送能力发布到 panel-bridge，
+ * 自己渲染 null —— 不会在会话头部留下任何视觉痕迹。
+ *
+ * @param props - sendTask 由该子槽的 inject 注入。
  */
-/**
- * 会话作用域子槽 `agnes.workspace` 的 occupant。
- *
- * 名字必须与 index.ts 里的 WORKSPACE_SLOT 一致。放在这里单独一个组件，是因为
- * `sendTask` 只有会话作用域的子槽才拿得到（见 index.ts 的两段注册说明）。
- *
- * @param props - sendTask 由子槽的 inject 注入。
- * @returns 面板。
- */
-export function AgnesWorkspace(props: { sendTask?: (text: string) => void }): unknown {
-  return createElement(StudioPanel, { onClose: hidePanel, sendTask: props.sendTask })
+export function SessionBridge(props: { sendTask?: (text: string) => void }): unknown {
+  useEffect(() => {
+    setPanelSender(props.sendTask)
+    return () => { setPanelSender(undefined) }
+  }, [props.sendTask])
+  return null
 }
 
 export function AgnesSeat(props: SeatProps): unknown {
   const [visible, setVisible] = useState(isPanelVisible())
+  const [sendTask, setSendTask] = useState(getPanelSender())
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => subscribePanel(() => { setVisible(isPanelVisible()) }), [])
+  useEffect(() => subscribePanelSender(() => { setSendTask(getPanelSender()) }), [])
 
   // Opening hands the screen back: sibling panels close on this event.
   useEffect(() => {
@@ -87,11 +89,10 @@ export function AgnesSeat(props: SeatProps): unknown {
     // become the containing block for the fixed panel inside it.
     createElement('div', { 'data-dsh-agnes-backdrop': '', onClick: hidePanel }),
     createElement('div', { 'data-dsh-agnes-studio-frame': '' },
-      // 面板本体走会话作用域的子槽渲染 —— sendTask 是在那里被注入的。
-      // renderSlot 缺席时（旧版宿主）退回到直接渲染，此时没有任务通道。
-      typeof props.renderSlot === 'function'
-        ? props.renderSlot('agnes.workspace', {})
-        : createElement(StudioPanel, { onClose: hidePanel }),
+      // 面板本体由座位直接渲染。
+      // 曾经这里 renderSlot('agnes.workspace')：那是 root 父槽下的 session 子槽，
+      // DSH 会直接抛 SlotAssemblyError，整个面板空白。详见 panel-bridge.ts 的说明。
+      createElement(StudioPanel, { onClose: hidePanel, sendTask }),
     ),
   )
 }

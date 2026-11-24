@@ -27,6 +27,7 @@ import { OVERRIDES_CSS } from './styles/12-overrides.ts'
 import { NEW_PANELS_CSS } from './styles/13-new-panels.ts'
 import { SPATIAL_CSS, SPATIAL_CSS_2, SPATIAL_CSS_3 } from './styles/14-spatial.ts'
 import { VPT_CSS } from './styles/15-vpt.ts'
+import { RAIL_GRID_CSS } from './styles/16-rail.ts'
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。
@@ -50,6 +51,7 @@ const CSS = [
   SPATIAL_CSS_2,
   SPATIAL_CSS_3,
   VPT_CSS,
+  RAIL_GRID_CSS,
 ].join('')
 
 
