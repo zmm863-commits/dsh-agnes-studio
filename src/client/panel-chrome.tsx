@@ -7,7 +7,7 @@
  * MODULES 也随之搬到这里：它原本被标题栏和 rail 各读一次，放本文件后可保证
  * 「导航顺序」只有一个来源（此前两处依赖同一个数组，改一处容易忘另一处）。
  */
-import { createElement } from './react-shim.ts'
+import { createElement, useEffect, useRef, useState } from './react-shim.ts'
 import { iconSvg } from './icons.ts'
 import { AGNES_DOCS_URL, AGNES_PLATFORM_URL, PANEL_SIZE_LABEL, PRODUCT_NAME, type PanelSize } from './constants.ts'
 import type { KeyStatus } from './studio.ts'
@@ -198,7 +198,7 @@ export function KeyGuide(props: KeyGuideProps): unknown {
   )
 }
 
-/** 底部 dock：模块入口 + 尾部主操作。 */
+/** 底部 dock：常驻的几个主入口 + 「更多」 + 尾部主操作。 */
 export interface NavRailProps {
   /** 当前页签 id。 */
   tab: string
@@ -208,17 +208,52 @@ export interface NavRailProps {
 }
 
 /**
- * 左侧垂直导航：模块列表 + 底部设置入口。
+ * dock 常驻的入口。
+ *
+ * 为什么不是全部 16 个：dock 是"动线终点"，塞满之后每一项都变得难瞄；
+ * 稿子也是 6 个左右。其余模块收进「更多」浮层，仍然一次点击可达。
+ */
+const DOCK_PRIMARY = ['image', 'video', 'storyboard', 'ohstory', 'canvas']
+
+/** 「更多」浮层里的图标。 */
+const MORE_ICON =
+  '<svg viewBox="0 0 16 16" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.35" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<circle cx="3.2" cy="3.2" r="1.1"/><circle cx="8" cy="3.2" r="1.1"/><circle cx="12.8" cy="3.2" r="1.1"/>'
+  + '<circle cx="3.2" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.8" cy="8" r="1.1"/>'
+  + '<circle cx="3.2" cy="12.8" r="1.1"/><circle cx="8" cy="12.8" r="1.1"/><circle cx="12.8" cy="12.8" r="1.1"/>'
+  + '</svg>'
+
+/**
+ * 底部 dock：常驻主入口 + 「更多」浮层 + 尾部主操作。
+ *
+ * 交互约定：
+ *  - dock 可以**横向拖动/滚动**（鼠标拖、触控板横向滑、滚轮），窄窗口不会把按钮压扁；
+ *  - 拖动超过 4px 就吞掉随后的 click，避免"滑一下顺手切了页签"；
+ *  - 「更多」是原地浮层，不新开面板，点外部/按 Esc 关闭。
+ *
  * @param props - 数据与回调。
  */
 export function NavRail(props: NavRailProps): unknown {
   const { tab, onSelect, trailing } = props
+  const [moreOpen, setMoreOpen] = useState(false)
+  const railRef = useRef<HTMLElement | null>(null)
+  const drag = useRef({ active: false, startX: 0, scrollLeft: 0, moved: 0 })
+
+  const primary = DOCK_PRIMARY
+    .map(id => MODULES.find(m => m.id === id))
+    .filter((m): m is NavModule => m !== undefined)
+  const rest = MODULES.filter(m => !DOCK_PRIMARY.includes(m.id))
 
   const item = (m: NavModule): unknown => createElement('button', {
     key: m.id,
     className: `agnes-rail-item${tab === m.id ? ' active' : ''}`,
     'data-tab': m.id,
-    onClick: () => onSelect(m.id),
+    onClick: () => {
+      if (drag.current.moved > 4) { drag.current.moved = 0; return }
+      setMoreOpen(false)
+      onSelect(m.id)
+    },
     title: m.name,
   },
     createElement('span', {
@@ -228,18 +263,102 @@ export function NavRail(props: NavRailProps): unknown {
     createElement('span', { className: 'agnes-rail-label' }, m.name),
   )
 
-  const group = (id: string, label: string, items: NavModule[]): unknown => createElement('div', {
-    key: id,
-    className: 'agnes-rail-group',
-  },
-    createElement('div', { className: 'agnes-rail-group-label' }, label),
-    ...items.map(item),
+  // 拖动滚动：鼠标按下即抓取，位移超过阈值就当成滑动而不是点击
+  const onPointerDown = (event: MouseEvent | TouchEvent): void => {
+    const node = railRef.current
+    if (node === null) return
+    const point = 'touches' in event ? event.touches[0] : (event as MouseEvent)
+    drag.current = { active: true, startX: point.clientX, scrollLeft: node.scrollLeft, moved: 0 }
+    node.dataset.dragging = 'true'
+  }
+  const onPointerMove = (event: MouseEvent | TouchEvent): void => {
+    const node = railRef.current
+    if (node === null || !drag.current.active) return
+    const point = 'touches' in event ? event.touches[0] : (event as MouseEvent)
+    const dx = point.clientX - drag.current.startX
+    drag.current.moved = Math.max(drag.current.moved, Math.abs(dx))
+    if (drag.current.moved > 4) node.scrollLeft = drag.current.scrollLeft - dx
+  }
+  const onPointerUp = (): void => {
+    const node = railRef.current
+    drag.current.active = false
+    if (node !== null) delete node.dataset.dragging
+    // 让 click 先跑完再复位，避免误判为滑动
+    setTimeout(() => { drag.current.moved = 0 }, 0)
+  }
+
+  // 滚轮：竖向滚动映射成横向滑动，触摸板手势保持原生
+  const onWheel = (event: WheelEvent): void => {
+    const node = railRef.current
+    if (node === null || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+    if (node.scrollWidth <= node.clientWidth) return
+    node.scrollLeft += event.deltaY
+    event.preventDefault()
+  }
+
+  useEffect(() => {
+    if (!moreOpen) return undefined
+    const onDown = (event: Event): void => {
+      const target = event.target as HTMLElement | null
+      if (target !== null && target.closest('.agnes-dock-more-wrap') !== null) return
+      setMoreOpen(false)
+    }
+    const onKey = (event: KeyboardEvent): void => { if (event.key === 'Escape') setMoreOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [moreOpen])
+
+  const moreButton = createElement('div', { className: 'agnes-dock-more-wrap' },
+    createElement('button', {
+      className: `agnes-rail-item agnes-dock-more-btn${moreOpen ? ' active' : ''}`,
+      onClick: () => setMoreOpen(!moreOpen),
+      title: '更多模块',
+      'aria-expanded': moreOpen ? 'true' : 'false',
+    },
+      createElement('span', {
+        className: 'agnes-rail-icon',
+        dangerouslySetInnerHTML: { __html: MORE_ICON },
+      }),
+      createElement('span', { className: 'agnes-rail-label' }, '更多'),
+    ),
+    moreOpen
+      ? createElement('div', { className: 'agnes-dock-more' },
+          ...rest.map(m => createElement('button', {
+            key: m.id,
+            className: `agnes-dock-more-item${tab === m.id ? ' active' : ''}`,
+            onClick: () => { setMoreOpen(false); onSelect(m.id) },
+          },
+            createElement('span', {
+              className: 'agnes-dock-more-icon',
+              dangerouslySetInnerHTML: { __html: iconSvg(m.icon, 17) },
+            }),
+            createElement('span', null, m.name),
+          )),
+        )
+      : null,
   )
 
-  return createElement('nav', { className: 'agnes-rail' },
-    ...MODULE_GROUPS.map(g => group(g.id, g.label, g.items)),
-    createElement('div', { className: 'agnes-rail-spacer' }),
-    group(CONFIG_GROUP.id, CONFIG_GROUP.label, CONFIG_GROUP.items),
-    trailing ?? null,
+  return createElement('div', { className: 'agnes-dock-wrap' },
+    createElement('nav', {
+      className: 'agnes-rail',
+      ref: railRef,
+      onMouseDown: onPointerDown,
+      onMouseMove: onPointerMove,
+      onMouseUp: onPointerUp,
+      onMouseLeave: onPointerUp,
+      onTouchStart: onPointerDown,
+      onTouchMove: onPointerMove,
+      onTouchEnd: onPointerUp,
+      onWheel,
+    },
+      ...primary.map(item),
+      moreButton,
+      trailing ?? null,
+    ),
   )
 }
+

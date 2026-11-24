@@ -98,7 +98,7 @@ export interface ImageVideoWorkspaceProps {
   refImages: string[]
   onRefImagesChange: (urls: string[]) => void
 
-  /** Agnes Key 状态（模型信息区展示）。 */
+  /** Agnes Key 状态（仅在设置页展示；创作区不再重复）。 */
   keyStatus: KeyStatus
 }
 
@@ -432,22 +432,6 @@ export function ImageVideoWorkspace(props: ImageVideoWorkspaceProps): unknown {
                 tab === 'video' && videoMode === 'keyframe' ? '纯文生视频模式（或上传首尾帧）' : '无参考图（纯文生模式）'),
         ) : null,
 
-        isMedia ? createElement('div', { className: 'agnes-divider' }) : null,
-
-        isMedia ? createElement('div', { className: 'agnes-section' },
-          createElement('div', { className: 'agnes-section-title' }, '模型信息'),
-          createElement('div', { style: { fontSize: '12px', color: 'var(--ag-text-3, #6e80a3)', lineHeight: '1.6' } },
-            createElement('div', null, `当前图片模型: ${modelName(selectedImageModel, imageModels)}`),
-            createElement('div', null, `当前视频模型: ${modelName(selectedVideoModel, videoModels)}`),
-            createElement('div', null, `图片尺寸: ${imageSize} · 比例: ${imageRatio}`),
-            tab === 'video' ? createElement('div', null, `视频模式: ${videoMode === 'text' ? '文生视频' : videoMode === 'keyframe' ? '首尾帧' : '参考图'} · ${videoResolution} · ${videoAspectRatio}`) : null,
-            createElement('div', { style: { marginTop: '6px' } },
-              keyStatus === 'ready' ? 'API Key：已配置'
-                : keyStatus === 'missing' ? 'API Key：未配置'
-                  : 'API Key：未检测',
-            ),
-          ),
-        ) : null,
           ),
         )
       : null,

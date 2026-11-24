@@ -30,6 +30,8 @@ import { VPT_CSS } from './styles/15-vpt.ts'
 import { RAIL_GRID_CSS } from './styles/16-rail.ts'
 import { SPEC_CSS } from './styles/17-spec.ts'
 import { DOCK_CSS } from './styles/18-dock.ts'
+import { DOCK_SLIDE_CSS } from './styles/19-dock-slide.ts'
+import { COMPACT_CSS } from './styles/20-compact.ts'
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。
@@ -56,6 +58,8 @@ const CSS = [
   RAIL_GRID_CSS,
   SPEC_CSS,
   DOCK_CSS,
+  DOCK_SLIDE_CSS,
+  COMPACT_CSS,
 ].join('')
 
 
