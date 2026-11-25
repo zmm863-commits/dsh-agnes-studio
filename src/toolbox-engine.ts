@@ -4,7 +4,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { dataRoot } from './ffmpeg.js'
 
@@ -29,6 +30,8 @@ export interface VidbeeTask {
   log: string[]
   name?: string
   size?: number
+  /** 落盘路径（下载完成后可播放/复用）。 */
+  path?: string
   created_at: number
   updated_at: number
 }
@@ -136,6 +139,29 @@ export async function handleToolboxRoute(
   return null
 }
 
+/** 在 PATH 与常见位置里找 yt-dlp。 */
+async function whichYtDlp(): Promise<string | null> {
+  const candidates = ['/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', '/opt/homebrew/bin/yt-dlp']
+  for (const path of candidates) {
+    if (existsSync(path)) return path
+  }
+  const probe = await execFileAsync('yt-dlp', ['--version'], 8000)
+  return probe.code === 0 ? 'yt-dlp' : null
+}
+
+/** 执行命令，永不抛（返回码 + 输出）。 */
+function execFileAsync(command: string, args: string[], timeout: number): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise(resolve => {
+    execFile(command, args, { timeout, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+      resolve({
+        code: error === null ? 0 : (typeof error.code === 'number' ? error.code : 1),
+        stdout: String(stdout ?? ''),
+        stderr: String(stderr ?? ''),
+      })
+    })
+  })
+}
+
 // ─── 核心算法 ──────────────────────────────────────────────────────────────
 
 async function runVidbee(id: string, host: ToolboxHost): Promise<void> {
@@ -148,11 +174,54 @@ async function runVidbee(id: string, host: ToolboxHost): Promise<void> {
     task.updated_at = Date.now()
     saveToDisk(task)
 
-    // 模拟下载
-    await new Promise(r => setTimeout(r, 2000))
-    task.log.push('下载完成')
-    task.name = `video_${id}.mp4`
-    task.size = 1024 * 1024 * 10
+    // 真实下载：直链直接抓，其余交给 yt-dlp（有就用，没有就明确报错）
+    const url = task.url
+    const dir = join(TOOLBOX_DIR, 'vidbee', id)
+    mkdirSync(dir, { recursive: true })
+    const quality = task.quality || 'best'
+
+    if (!/^https?:\/\//i.test(url)) throw new Error('链接必须以 http:// 或 https:// 开头')
+
+    const ytDlp = await whichYtDlp()
+    if (ytDlp !== null) {
+      task.log.push(`用 yt-dlp 下载（${quality}）…`)
+      const out = join(dir, 'download.%(ext)s')
+      const format = quality === '1080p' ? 'bestvideo[height<=1080]+bestaudio/best[height<=1080]'
+        : quality === '720p' ? 'bestvideo[height<=720]+bestaudio/best[height<=720]'
+        : quality === '480p' ? 'bestvideo[height<=480]+bestaudio/best[height<=480]'
+        : 'bestvideo+bestaudio/best'
+      const result = await execFileAsync(ytDlp, ['-f', format, '--merge-output-format', 'mp4', '-o', out, url], 30 * 60 * 1000)
+      if (result.code !== 0) throw new Error(`yt-dlp 失败：${result.stderr.slice(-300)}`)
+      const produced = readdirSync(dir).find(name => name.startsWith('download.'))
+      if (produced === undefined) throw new Error('yt-dlp 没有产出文件')
+      const full = join(dir, produced)
+      task.name = produced
+      task.size = statSync(full).size
+      task.path = full
+    } else {
+      // 没有 yt-dlp：只支持直链媒体文件
+      task.log.push('未检测到 yt-dlp，按直链处理…')
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 10 * 60 * 1000)
+      try {
+        const resp = await fetch(url, { signal: ac.signal, redirect: 'follow' })
+        if (!resp.ok) throw new Error(`下载失败 HTTP ${resp.status}`)
+        const contentType = resp.headers.get('content-type') ?? ''
+        if (!/video|audio|octet-stream/i.test(contentType)) {
+          throw new Error(`这个链接不是媒体文件（${contentType || '未知类型'}），需要先安装 yt-dlp 才能解析`)
+        }
+        const buffer = Buffer.from(await resp.arrayBuffer())
+        const name = `video_${id}.mp4`
+        writeFileSync(join(dir, name), buffer)
+        task.name = name
+        task.size = buffer.byteLength
+        task.path = join(dir, name)
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+
+    task.log.push(`下载完成：${task.name ?? ''}（${((task.size ?? 0) / 1048576).toFixed(1)} MB）`)
     task.status = 'done'
     task.updated_at = Date.now()
     saveToDisk(task)
