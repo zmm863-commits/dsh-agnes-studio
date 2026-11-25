@@ -7,6 +7,30 @@ import { React, useState, useCallback, createElement } from './react-shim.ts'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────────
 
+interface AnalyzedScene {
+  index: number
+  start: number
+  end: number
+  description: string
+  prompt: string
+  shotSize: string
+  camera: string
+  mood: string
+  dialogue: string
+  speaker: string
+  frames: number[]
+}
+
+interface VideoAnalysis {
+  durationSec: number
+  segmentation: 'scene-cut' | 'even'
+  digest: { summary: string; characters: string[]; settings: string[]; pacing: string; style: string }
+  scenes: AnalyzedScene[]
+  transcript: string
+  hasSpeech: boolean
+  warnings: string[]
+}
+
 interface VideoparseTask {
   id: string
   status: 'pending' | 'running' | 'completed' | 'failed'
@@ -14,6 +38,9 @@ interface VideoparseTask {
   video_file: string
   scenes?: Array<{ index: number; start: number; end: number; description: string }>
   keyframes?: string[]
+  analysis?: VideoAnalysis
+  percent?: number
+  warnings?: string[]
   created_at: number
   updated_at: number
 }
@@ -128,6 +155,11 @@ function ParsePanel() {
           currentTask.status === 'completed' ? '已完成' : '失败'),
       ),
       createElement('p', null, currentTask.message),
+      currentTask.status === 'running' && typeof currentTask.percent === 'number'
+        ? createElement('div', { className: 'agnes-progress-bar', style: { marginTop: '6px' } },
+            createElement('div', { className: 'agnes-progress-fill', style: { width: `${currentTask.percent}%` } }),
+          )
+        : null,
     ),
 
     // 输入区域
@@ -147,32 +179,65 @@ function ParsePanel() {
     ),
 
     // 解析结果
-    currentTask?.status === 'completed' && createElement('div', { className: 'parse-section' },
-      createElement('h4', null, '② 解析结果'),
-      createElement('div', { className: 'parse-result' },
-        currentTask.scenes && createElement('div', { className: 'parse-scenes' },
-          createElement('h5', null, '场景列表'),
-          currentTask.scenes.map(scene =>
-            createElement('div', { key: scene.index, className: 'parse-scene' },
-              createElement('span', null, `场景 ${scene.index}`),
-              createElement('span', { className: 'parse-scene-time' }, `${scene.start}s - ${scene.end}s`),
-              createElement('p', null, scene.description),
-            )
-          ),
+    currentTask?.status === 'completed' && (() => {
+      const analysis = currentTask.analysis
+      if (analysis === undefined) {
+        // 老任务（改造前存的）没有分析数据
+        return createElement('div', { className: 'parse-section' },
+          createElement('h4', null, '② 解析结果'),
+          createElement('p', null, '这个任务是旧版本产生的，没有分析数据。重新解析一次即可。'),
+        )
+      }
+      const header = createElement('div', { className: 'parse-analysis-head' },
+        createElement('span', null, `时长 ${analysis.durationSec.toFixed(1)}s · ${analysis.scenes.length} 个镜头 · ${analysis.segmentation === 'scene-cut' ? '真实切点' : '等分兜底'}`),
+        createElement('a', {
+          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
+          href: `${API_VIDEO}/report/${currentTask.id}`,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        }, '导出报告'),
+      )
+      return createElement('div', { className: 'parse-section' },
+        createElement('h4', null, '② 解析结果'),
+        header,
+        analysis.warnings.length > 0 && createElement('div', { className: 'parse-warnings' },
+          ...analysis.warnings.map((w, i) => createElement('div', { key: i }, `⚠ ${w}`)),
         ),
-        currentTask.keyframes && createElement('div', { className: 'parse-keyframes' },
-          createElement('h5', null, '关键帧'),
-          createElement('div', { className: 'parse-keyframe-grid' },
-            currentTask.keyframes.slice(0, 10).map((kf, i) =>
-              createElement('div', { key: i, className: 'parse-keyframe' },
-                createElement('img', { src: kf, alt: `Keyframe ${i + 1}` }),
-                createElement('span', null, `${i + 1}`),
-              )
+        createElement('div', { className: 'parse-digest' },
+          createElement('div', null, createElement('b', null, '整体理解：'), analysis.digest.summary || '—'),
+          analysis.digest.characters.length > 0 ? createElement('div', null, createElement('b', null, '人物：'), analysis.digest.characters.join('、')) : null,
+          analysis.digest.settings.length > 0 ? createElement('div', null, createElement('b', null, '场景：'), analysis.digest.settings.join('、')) : null,
+          createElement('div', null, createElement('b', null, '节奏：'), analysis.digest.pacing || '—', '　', createElement('b', null, '风格：'), analysis.digest.style || '—'),
+        ),
+        typeof analysis.transcript === 'string' && analysis.transcript !== ''
+          ? createElement('details', { className: 'parse-transcript' },
+              createElement('summary', null, `台词转写（${analysis.transcript.length} 字）`),
+              createElement('p', null, analysis.transcript),
+            )
+          : null,
+        createElement('div', { className: 'parse-scenes' },
+          createElement('h5', null, '分镜表'),
+          ...analysis.scenes.map(scene =>
+            createElement('div', { key: scene.index, className: 'parse-scene' },
+              createElement('div', { className: 'parse-scene-head' },
+                createElement('span', null, `#${scene.index}`),
+                createElement('span', { className: 'parse-scene-time' }, `${scene.start.toFixed(1)}–${scene.end.toFixed(1)}s`),
+                scene.shotSize !== '' ? createElement('span', { className: 'parse-scene-tag' }, scene.shotSize) : null,
+                scene.camera !== '' ? createElement('span', { className: 'parse-scene-tag' }, scene.camera) : null,
+                scene.mood !== '' ? createElement('span', { className: 'parse-scene-tag' }, scene.mood) : null,
+              ),
+              createElement('p', null, scene.description || '（画面描述为空）'),
+              scene.dialogue !== ''
+                ? createElement('p', { className: 'parse-scene-dialogue' }, `台词：${scene.dialogue}${scene.speaker === '' ? '' : `（${scene.speaker}）`}`)
+                : null,
+              scene.prompt !== ''
+                ? createElement('p', { className: 'parse-scene-prompt' }, scene.prompt)
+                : null,
             ),
           ),
         ),
-      ),
-    ),
+      )
+    })(),
   )
 }
 

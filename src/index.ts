@@ -18,15 +18,17 @@ import { handleBgVideoRoute, rehydrateBgVideos, type BgVideoHost } from './bgvid
 import { handleMvRoute, rehydrateMvTasks, type MvHost } from './mv-engine.js'
 import { handleNovelSplitRoute, handleDeaiRoute, rehydrateNovelSplit, type NovelSplitHost } from './novel-split-engine.js'
 import { handleToolboxRoute, rehydrateToolbox, type ToolboxHost } from './toolbox-engine.js'
-import { handleVideoparseRoute, handleVptRoute, rehydrateVideoparse, type VideoparseHost } from './videoparse-engine.js'
+import { handleVideoparseRoute, handleVptRoute, rehydrateVideoparse, renderAnalysisReport, type VideoparseHost } from './videoparse-engine.js'
+import { burnSubtitles, concatClips, composeReady, kenBurnsClip } from './video-compose.js'
 import { handleWechatRoute, handleLocalfilesRoute, rehydrateWechat, rehydrateLocalfiles, type WechatHost } from './wechat-engine.js'
 import { COVER_STYLES, analyzeNovelFile, buildCoverPrompt } from './cover-engine.js'
 import { handlePromptExpertRoute, generatePromptExpert, EXPERT_TYPES } from './prompt-expert-engine.js'
 import {
   listDshWorkspaces, detectCreativeProjects, listEntries, readText, writeText, createProject,
 } from './ohstory-fs.js'
-import { ffmpegStatus } from './ffmpeg.js'
-import { statSync, createReadStream } from 'node:fs'
+import { ffmpegStatus, dataRoot } from './ffmpeg.js'
+import { statSync, createReadStream, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { VENDOR_BASE_URLS, getVendorFromModel } from './vendors.js'
 import {
   KNOWN_VENDORS, configFilePath, describeVendors, findCustomModel, loadModelConfig,
@@ -777,6 +779,58 @@ export function apply(ctx: Context): void {
           return
         }
 
+        // ── 视频解析 / 视觉 / 语音 的公共能力 ────────────────────────────
+        // 视觉：走插件的厂商解析，默认 agnes-2.5-flash（支持 image_url 输入）
+        const visionModel = process.env.DSH_AGNES_VISION_MODEL || 'agnes-2.5-flash'
+        const callVision = async (
+          messages: Array<{ role: 'system' | 'user'; content: unknown }>,
+          opts?: { maxTokens?: number },
+        ): Promise<string> => {
+          const vendor = getVendorFromModel(visionModel)
+          const apiKey = await resolveApiKeyForVendor(ctx, vendor, visionModel)
+          const custom = findCustomModel(loadModelConfig(), visionModel)
+          const baseUrl = custom?.baseUrl ?? vendorBaseUrl(loadModelConfig(), vendor)
+          const ac = new AbortController()
+          const timer = setTimeout(() => ac.abort(), 180_000)
+          try {
+            const r = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+              method: 'POST',
+              signal: ac.signal,
+              headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: visionModel, messages, max_tokens: opts?.maxTokens ?? 900, temperature: 0.3 }),
+            })
+            if (!r.ok) throw new Error(`视觉模型 ${r.status}: ${(await r.text()).slice(0, 200)}`)
+            const data = await r.json() as { choices?: Array<{ message?: { content?: string } }> }
+            const text = data.choices?.[0]?.message?.content ?? ''
+            if (text.trim() === '') throw new Error('视觉模型返回空内容')
+            return text.trim()
+          } finally {
+            clearTimeout(timer)
+          }
+        }
+
+        // 语音：DSH 宿主若安装了 speechToText 服务就用它，否则诚实缺省（解析结果会标注无台词）
+        const callSpeech = async (wav: Uint8Array): Promise<string> => {
+          const speech = (ctx as unknown as {
+            speechToText?: {
+              resolve?: (request: { audio: Uint8Array; language?: string }) => unknown
+              transcribe?: (spec: unknown, signal: AbortSignal) => Promise<{ text: string }>
+            }
+          }).speechToText
+          if (speech === undefined || typeof speech.resolve !== 'function' || typeof speech.transcribe !== 'function') {
+            throw new Error('宿主没有提供语音识别服务')
+          }
+          const spec = speech.resolve({ audio: wav, language: 'zh' })
+          const controller = new AbortController()
+          const timer = setTimeout(() => controller.abort(), 180_000)
+          try {
+            const transcript = await speech.transcribe(spec, controller.signal)
+            return transcript.text
+          } finally {
+            clearTimeout(timer)
+          }
+        }
+
         // ── Drama pipeline API ──────────────────────────────────────────
         if (path.startsWith('/agnes-studio/api/drama')) {
           try {
@@ -844,6 +898,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleAnchorRoute(method, path, body, anchorHost)
             if (result) {
@@ -876,6 +932,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleBgVideoRoute(method, pathWithQuery, body, bgVideoHost)
             if (result) {
@@ -908,6 +966,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleMvRoute(method, path, body, mvHost)
             if (result) {
@@ -940,6 +1000,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleNovelSplitRoute(method, path, body, novelSplitHost)
             if (result) {
@@ -972,6 +1034,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleDeaiRoute(method, path, body, novelSplitHost)
             if (result) {
@@ -1026,6 +1090,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleToolboxRoute(method, pathWithQuery, body, toolboxHost)
             if (result) {
@@ -1075,9 +1141,76 @@ export function apply(ctx: Context): void {
           return
         }
 
+        // ── 合成积木（静图动画 / 字幕烧录 / 拼接）──────────────────────
+        if (path.startsWith('/agnes-studio/api/compose')) {
+          try {
+            const sub = path.slice('/agnes-studio/api/compose'.length).replace(/^\//, '')
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) as Record<string, unknown> : {}
+
+            if (method === 'GET' && sub === 'status') {
+              jsonResponse(res, 200, await composeReady())
+              return
+            }
+
+            const outDir = join(dataRoot(), 'compose')
+            mkdirSync(outDir, { recursive: true })
+
+            if (method === 'POST' && sub === 'kenburns') {
+              const image = String(body.image ?? '')
+              const durationSec = Number(body.durationSec ?? 4)
+              if (image === '') { jsonResponse(res, 400, { error: '缺少 image（本机图片路径）' }); return }
+              const out = join(outDir, `kb-${Date.now()}.mp4`)
+              const result = await kenBurnsClip(image, out, {
+                durationSec: Number.isFinite(durationSec) ? durationSec : 4,
+                width: Number(body.width ?? 1280),
+                height: Number(body.height ?? 720),
+                motion: String(body.motion ?? 'zoom-in') as 'zoom-in',
+              })
+              jsonResponse(res, result.ok ? 200 : 500, result)
+              return
+            }
+
+            if (method === 'POST' && sub === 'burn') {
+              const video = String(body.video ?? '')
+              const srt = String(body.srt ?? '')
+              if (video === '' || srt === '') { jsonResponse(res, 400, { error: '缺少 video 或 srt' }); return }
+              const out = join(outDir, `sub-${Date.now()}.mp4`)
+              const result = await burnSubtitles(video, srt, out, body.font === undefined ? undefined : String(body.font))
+              jsonResponse(res, result.ok ? 200 : 500, result)
+              return
+            }
+
+            if (method === 'POST' && sub === 'concat') {
+              const inputs = Array.isArray(body.inputs) ? body.inputs.map(String) : []
+              if (inputs.length === 0) { jsonResponse(res, 400, { error: '缺少 inputs' }); return }
+              const out = join(outDir, `cat-${Date.now()}.mp4`)
+              const result = await concatClips(inputs, out)
+              jsonResponse(res, result.ok ? 200 : 500, result)
+              return
+            }
+
+            jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
         // ── Video parse (视频解析) API ────────────────────────────────
         if (path.startsWith('/agnes-studio/api/video')) {
           try {
+            // 报告导出：把某一任务的分析结果渲染成可打印 HTML
+            const reportMatch = /^\/agnes-studio\/api\/video\/report\/([A-Za-z0-9]+)$/.exec(path)
+            if (method === 'GET' && reportMatch !== null) {
+              const html = renderAnalysisReport(reportMatch[1])
+              if (html === null) {
+                jsonResponse(res, 404, { error: '任务不存在或尚未完成分析' })
+                return
+              }
+              res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+              res.end(html)
+              return
+            }
             const body = method === 'POST' ? JSON.parse(await readBody(req)) : {}
             const videoparseHost: VideoparseHost = {
               resolveKey: async (vendor: string) => {
@@ -1095,6 +1228,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleVideoparseRoute(method, path, body, videoparseHost)
             if (result) {
@@ -1127,6 +1262,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleVptRoute(method, path, body, videoparseHost)
             if (result) {
@@ -1159,6 +1296,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleWechatRoute(method, path, body, wechatHost)
             if (result) {
@@ -1191,6 +1330,8 @@ export function apply(ctx: Context): void {
                   timeoutMs: opts.timeoutMs || 120_000,
                 })
               },
+              callVision,
+              callSpeech,
             }
             const result = await handleLocalfilesRoute(method, path, body, wechatHost)
             if (result) {
