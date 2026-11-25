@@ -297,32 +297,66 @@ async function generateShotVideos(host: BgVideoHost, task: BgVideoTask): Promise
     task.updated_at = Date.now()
     saveToDisk(task)
 
-    const submitted = await host.call('agnes', '/v1/videos', {
-      body: {
-        model,
-        prompt: shot.desc,
-        mode: 'text',
-        seconds: '5',
-        size: '720P',
-      },
-      timeoutMs: 120_000,
-    }) as { video_id?: string; id?: string; task_id?: string }
+    // 提交带排队重试：免费通道同时只允许 1 个视频任务，撞上队列满（503）时
+    // 墨影的做法是等 60s ±15% 抖动再试 —— 这里照做，最多试 6 次。
+    let submitted: { video_id?: string; id?: string; task_id?: string } | undefined
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        submitted = await host.call('agnes', '/v1/videos', {
+          body: {
+            model,
+            prompt: shot.desc,
+            mode: 'text',
+            seconds: '5',
+            size: '720P',
+          },
+          timeoutMs: 120_000,
+        }) as { video_id?: string; id?: string; task_id?: string }
+        break
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        const busy = /503|429|queue_full|队列已满/i.test(message)
+        if (!busy) throw error
+        if (attempt === 5) throw new Error(`第 ${shot.index} 幕排队超时：${message}`)
+        const waitMs = Math.round(60_000 * (0.85 + Math.random() * 0.3))
+        task.message = `第 ${shot.index} 幕排队中（${Math.round(waitMs / 1000)}s 后重试）…`
+        task.updated_at = Date.now()
+        saveToDisk(task)
+        await new Promise(r => setTimeout(r, waitMs))
+      }
+    }
+    if (submitted === undefined) throw new Error(`第 ${shot.index} 幕提交失败`)
     const videoId = String(submitted.video_id ?? submitted.task_id ?? submitted.id ?? '')
     if (videoId === '') throw new Error(`第 ${shot.index} 幕提交后没拿到任务 id`)
 
+    // 轮询到终态。地址在 metadata.url —— 与 drama-engine 用的是同一套解析，
+    // 之前这里只读 status.url，结果"已完成但拿不到地址"，一路空转到超时。
     const deadline = Date.now() + 20 * 60 * 1000
     let url = ''
     while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 5000))
+      await new Promise(r => setTimeout(r, 8000))
       const status = await host.call('agnes', `/v1/videos/${encodeURIComponent(videoId)}`, {
         method: 'GET', timeoutMs: 60_000,
-      }) as { status?: string; url?: string; video_url?: string; data?: { url?: string } }
+      }) as {
+        status?: string
+        url?: string
+        video_url?: string
+        metadata?: { url?: string }
+        data?: { url?: string }
+        error?: { message?: string } | string
+      }
       const state = String(status.status ?? '')
-      if (state === 'failed' || state === 'error') throw new Error(`第 ${shot.index} 幕生成失败`)
-      url = String(status.url ?? status.video_url ?? status.data?.url ?? '')
-      if (url !== '' && (state === 'completed' || state === 'succeeded' || state === '')) break
+      if (state === 'failed' || state === 'error') {
+        const detail = typeof status.error === 'string' ? status.error : status.error?.message
+        throw new Error(`第 ${shot.index} 幕生成失败${detail === undefined ? '' : '：' + detail}`)
+      }
+      if (state === 'completed') {
+        url = String(status.metadata?.url ?? status.url ?? status.video_url ?? status.data?.url ?? '')
+        if (url === '') throw new Error(`第 ${shot.index} 幕任务完成但没有返回视频地址`)
+        break
+      }
     }
-    if (url === '') throw new Error(`第 ${shot.index} 幕等待超时`)
+    if (url === '') throw new Error(`第 ${shot.index} 幕等待超时（20 分钟）`)
     ;(shot as { video?: string }).video = url
     task.updated_at = Date.now()
     saveToDisk(task)
