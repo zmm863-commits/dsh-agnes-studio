@@ -378,6 +378,23 @@ export async function handleBgVideoRoute(
 
   // POST /generate - 启动任务（分幕）
   if (method === 'POST' && sub === 'generate') {
+    // 同一个路径有两种意图：带 task_id = 开始出片；不带 = 新建任务并分幕。
+    // （此前两个 `sub === 'generate'` 分支，第二个永远走不到 —— 出片点了没反应。）
+    const startTaskId = (body as { task_id?: string }).task_id
+    if (startTaskId !== undefined && startTaskId !== '') {
+      const existing = bgVideoTasks.get(startTaskId) || loadFromDisk(startTaskId)
+      if (!existing) return { status: 404, data: { error: '任务不存在' } }
+      if (existing.shots === undefined || existing.shots.length === 0) {
+        return { status: 400, data: { error: '还没有分镜，先写分镜再出片' } }
+      }
+      existing.status = 'generating'
+      existing.message = '正在生成视频...'
+      existing.updated_at = Date.now()
+      saveToDisk(existing)
+      runGeneration(startTaskId, host).catch(() => {})
+      return { status: 200, data: { success: true } }
+    }
+
     const {
       audio_file, lrc_file, script_file, refvideo_file, accompaniment_file,
       asr_model, scene, role, voice, frame_every_sec, plan_only,
@@ -388,8 +405,9 @@ export async function handleBgVideoRoute(
       frame_every_sec?: number; plan_only?: boolean
     }
 
-    if (!audio_file) {
-      return { status: 400, data: { error: '缺少 audio_file' } }
+    // 没有音频也能干：只要有文稿就按文稿分幕（时间轴用 4s/幕 估）
+    if (!audio_file && !script_file) {
+      return { status: 400, data: { error: '至少要有 audio_file 或 script_file' } }
     }
 
     const taskId = randomUUID().slice(0, 8)
@@ -397,7 +415,7 @@ export async function handleBgVideoRoute(
       task_id: taskId,
       status: 'segmenting',
       message: '正在分幕...',
-      audio_file,
+      audio_file: audio_file ?? '',
       lrc_file,
       script_file,
       refvideo_file,
@@ -815,10 +833,20 @@ export async function handleBgVideoRoute(
     return { status: 200, data: { success: true, anchor: character.anchor } }
   }
 
-  // GET /frames - 获取帧
+  // GET /frames - 参考视频的帧（真抽，没有参考视频就返回空）
   if (method === 'GET' && sub === 'frames') {
-    const frames = Array.from({ length: 33 }, (_, i) => `frame_${i}.png`)
-    return { status: 200, data: { success: true, frames } }
+    const taskId = url.searchParams.get('task_id') || ''
+    const task = bgVideoTasks.get(taskId) || loadFromDisk(taskId)
+    if (!task) return { status: 404, data: { error: '任务不存在' } }
+    if (task.refvideo_file === undefined || task.refvideo_file === '') {
+      return { status: 200, data: { success: true, frames: [] } }
+    }
+    try {
+      const frames = await scanFrames(task.refvideo_file, 12, task.task_id)
+      return { status: 200, data: { success: true, frames } }
+    } catch (error) {
+      return { status: 500, data: { error: error instanceof Error ? error.message : String(error) } }
+    }
   }
 
   // ── 阶段 2：风格截图 + 一键出方案 ──────────────────────────────────────
@@ -949,24 +977,6 @@ export async function handleBgVideoRoute(
   }
 
   // ── 阶段 5：出片 + 验收 ──────────────────────────────────────────────────
-
-  // POST /generate - 启动出片
-  if (method === 'POST' && sub === 'generate') {
-    const { task_id } = body as { task_id?: string }
-    const task = bgVideoTasks.get(task_id || '') || loadFromDisk(task_id || '')
-    if (!task) {
-      return { status: 404, data: { error: '任务不存在' } }
-    }
-    task.status = 'generating'
-    task.message = '正在生成视频...'
-    task.updated_at = Date.now()
-    saveToDisk(task)
-
-    // 异步执行出片
-    runGeneration(taskId, host).catch(() => {})
-
-    return { status: 200, data: { success: true } }
-  }
 
   // GET /genlog - 生成日志
   if (method === 'GET' && sub === 'genlog') {
