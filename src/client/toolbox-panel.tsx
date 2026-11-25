@@ -144,15 +144,22 @@ function TtsPanel() {
     setAudioUrl('')
 
     try {
-      // 模拟 TTS 转换
-      await new Promise(r => setTimeout(r, 1000))
-      setAudioUrl('/agnes-studio/api/toolbox/tts/demo.mp3')
+      // 真实 TTS：后端调 MiMo，返回 base64 WAV 的 data URL
+      const resp = await fetch('/agnes-studio/api/toolbox/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim(), voice }),
+      })
+      const data = await resp.json() as { audio?: string; error?: string }
+      if (!resp.ok || data.error !== undefined) throw new Error(data.error ?? `HTTP ${resp.status}`)
+      if (data.audio === undefined || data.audio === '') throw new Error('后端没有返回音频')
+      setAudioUrl(data.audio)
     } catch (e) {
       setError(e instanceof Error ? e.message : '转换失败')
     } finally {
       setLoading(false)
     }
-  }, [text])
+  }, [text, voice])
 
   return createElement('div', { className: 'tts-panel' },
     error && createElement('div', { className: 'tts-error' }, error),

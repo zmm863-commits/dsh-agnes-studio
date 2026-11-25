@@ -14,6 +14,7 @@ export const VENDOR_BASE_URLS: Record<string, string> = {
   qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
   doubao: 'https://ark.cn-beijing.volces.com/api/v3',
   minimax: 'https://api.minimaxi.com/v1',
+  mimo: 'https://api.xiaomimimo.com/v1',
   ollama: 'http://localhost:11434/v1',
 }
 

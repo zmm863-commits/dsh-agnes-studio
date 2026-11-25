@@ -126,8 +126,8 @@ function WechatArticlePanel() {
 
   // 生成文章
   const handleGenerate = useCallback(async () => {
-    if (!title.trim() || !content.trim()) {
-      setError('请输入标题和内容')
+    if (!title.trim()) {
+      setError('请输入主题')
       return
     }
 
@@ -135,7 +135,13 @@ function WechatArticlePanel() {
     setError('')
 
     try {
-      await apiCall(API_WECHAT, 'POST', '/article', { title, content, author })
+      // 正文留空 = 让模型按主题写；填了正文 = 当作草稿存下来（不花模型调用）
+      await apiCall(API_WECHAT, 'POST', '/article', {
+        topic: title.trim(),
+        title: title.trim(),
+        content: content.trim() === '' ? undefined : content,
+        author,
+      })
       await loadArticles()
       setTitle('')
       setContent('')
@@ -203,7 +209,7 @@ function WechatArticlePanel() {
       createElement('div', { className: 'wechat-form' },
         createElement('label', { className: 'wechat-label' },
           '标题',
-          createElement('input', { type: 'text', value: title, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value), placeholder: '文章标题' }),
+          createElement('input', { type: 'text', value: title, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value), placeholder: '主题或标题（留空正文则由 AI 写）' }),
         ),
         createElement('label', { className: 'wechat-label' },
           '作者',
@@ -214,7 +220,7 @@ function WechatArticlePanel() {
           createElement('textarea', {
             value: content,
             onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setContent(e.target.value),
-            placeholder: '文章内容...',
+            placeholder: '正文（留空则由 AI 按主题写；填了就按原样存稿）',
             rows: 8,
           }),
         ),

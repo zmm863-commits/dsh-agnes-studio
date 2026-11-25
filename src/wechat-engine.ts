@@ -36,6 +36,72 @@ export interface LocalFile {
   type: 'file' | 'dir'
 }
 
+/**
+ * 存一篇本地草稿（内存 + 落盘）。
+ *
+ * @param title - 标题。
+ * @param content - 正文。
+ * @param author - 作者。
+ * @returns 文章对象。
+ */
+function storeArticle(title: string, content: string, author?: string): WechatArticle {
+  const article: WechatArticle = {
+    id: randomUUID().slice(0, 8),
+    title,
+    content,
+    author: author !== undefined && author !== '' ? author : 'AI 助手',
+    status: 'draft',
+    created_at: Date.now(),
+    updated_at: Date.now(),
+  }
+  wechatArticles.set(article.id, article)
+  saveArticle(article)
+  return article
+}
+
+/** 落盘一篇草稿。 */
+function saveArticle(article: WechatArticle): void {
+  try {
+    const dir = join(WECHAT_DIR, 'articles')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${article.id}.json`), JSON.stringify(article, null, 2), 'utf8')
+  } catch { /* 落盘失败不影响内存里的结果 */ }
+}
+
+/** 取公众号 access_token。 */
+async function fetchWechatToken(appid: string, secret: string): Promise<string> {
+  const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`
+  const resp = await fetch(url)
+  const data = await resp.json() as { access_token?: string; errcode?: number; errmsg?: string }
+  if (data.access_token === undefined) {
+    throw new Error(`取 access_token 失败（${data.errcode ?? '?'}）：${data.errmsg ?? '未知错误'}`)
+  }
+  return data.access_token
+}
+
+/** 推送一篇草稿到公众号草稿箱，返回 media_id。 */
+async function pushWechatDraft(token: string, article: WechatArticle): Promise<string> {
+  const resp = await fetch(`https://api.weixin.qq.com/cgi-bin/draft/add?access_token=${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      articles: [{
+        title: article.title,
+        author: article.author,
+        content: article.content,
+        thumb_media_id: '',
+        need_open_comment: 0,
+        only_fans_can_comment: 0,
+      }],
+    }),
+  })
+  const data = await resp.json() as { media_id?: string; errcode?: number; errmsg?: string }
+  if (data.media_id === undefined) {
+    throw new Error(`草稿推送失败（${data.errcode ?? '?'}）：${data.errmsg ?? '未知错误'}`)
+  }
+  return data.media_id
+}
+
 // ─── 存储 ──────────────────────────────────────────────────────────────────
 
 const wechatArticles = new Map<string, WechatArticle>()
@@ -102,36 +168,85 @@ export async function handleWechatRoute(
     }
   }
 
-  // POST /article - 生成文章
+  // POST /article - 生成文章（真实调用文本模型）
   if (method === 'POST' && sub === 'article') {
-    const { title, content, author } = body as { title: string; content: string; author?: string }
-    if (!title || !content) {
-      return { status: 400, data: { error: '缺少 title 或 content' } }
+    const {
+      title, topic, content, author, model, style, length,
+    } = body as {
+      title?: string; topic?: string; content?: string; author?: string
+      model?: string; style?: string; length?: number
     }
-    const id = randomUUID().slice(0, 8)
-    const article: WechatArticle = {
-      id,
-      title,
-      content,
-      author: author || 'AI 助手',
-      status: 'draft',
-      created_at: Date.now(),
-      updated_at: Date.now(),
+    const subject = String(topic ?? title ?? '').trim()
+    if (subject === '' && (content === undefined || content === '')) {
+      return { status: 400, data: { error: '缺少 topic / title（或直接给出 content 存草稿）' } }
     }
-    wechatArticles.set(id, article)
-    return { status: 200, data: { success: true, article } }
+
+    // 已经给了正文：当作存稿，不再花一次模型调用
+    if (content !== undefined && String(content).trim() !== '' && (topic === undefined || topic === '')) {
+      const article = storeArticle(String(title ?? '未命名'), String(content), author)
+      return { status: 200, data: { success: true, article, generated: false } }
+    }
+
+    const targetModel = model !== undefined && model !== '' ? model : 'agnes-2.5-flash'
+    const words = Number.isFinite(length) && Number(length) > 0 ? Number(length) : 1500
+    const tone = style !== undefined && style !== '' ? style : '第一人称、短句、段尾留钩子'
+    let text = ''
+    try {
+      const data = await host.call('agnes', '/chat/completions', {
+        body: {
+          model: targetModel,
+          messages: [
+            {
+              role: 'system',
+              content:
+                `你是公众号作者。根据主题写一篇约 ${words} 字的中文文章。` +
+                `风格：${tone}。` +
+                '要求：有具体细节和场景，不要排比堆砌，不要"首先其次最后"，不要总结式收尾；' +
+                '直接从故事或场景切入。只输出正文，不要标题、不要解释。',
+            },
+            { role: 'user', content: subject },
+          ],
+          max_tokens: Math.min(6000, Math.round(words * 2)),
+          temperature: 0.85,
+        },
+        timeoutMs: 240_000,
+      }) as { choices?: Array<{ message?: { content?: string } }> }
+      text = (data.choices?.[0]?.message?.content ?? '').trim()
+    } catch (error) {
+      return { status: 502, data: { error: `生成失败：${error instanceof Error ? error.message : String(error)}` } }
+    }
+    if (text === '') return { status: 502, data: { error: '模型返回空内容' } }
+
+    const article = storeArticle(String(title ?? subject), text, author)
+    return { status: 200, data: { success: true, article, generated: true } }
   }
 
-  // POST /publish - 发布文章
+  // POST /publish - 推送到公众号草稿箱（真调微信接口）
   if (method === 'POST' && sub === 'publish') {
     const { id } = body as { id: string }
     const article = wechatArticles.get(id)
     if (!article) {
       return { status: 404, data: { error: '文章不存在' } }
     }
-    article.status = 'published'
-    article.updated_at = Date.now()
-    return { status: 200, data: { success: true, article } }
+    if (wechatConfig.appid === '' || wechatConfig.secret === '') {
+      return {
+        status: 501,
+        data: {
+          error: '未配置公众号 AppID / AppSecret，无法推送。可在「公众号 → 设置」里填写后再试。',
+          hint: '当前文章已保存在本地草稿列表里。',
+        },
+      }
+    }
+    try {
+      const token = await fetchWechatToken(wechatConfig.appid, wechatConfig.secret)
+      const draftId = await pushWechatDraft(token, article)
+      article.status = 'published'
+      article.updated_at = Date.now()
+      saveArticle(article)
+      return { status: 200, data: { success: true, article, draftId } }
+    } catch (error) {
+      return { status: 502, data: { error: `推送失败：${error instanceof Error ? error.message : String(error)}` } }
+    }
   }
 
   // GET /list - 文章列表

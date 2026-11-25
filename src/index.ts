@@ -461,8 +461,23 @@ export function apply(ctx: Context): void {
               video?: string; frames?: number; target?: string; lang?: string; model?: string
             }
             if (!body.video) {
-              jsonResponse(res, 400, { error: '缺少 video（base64 data URL）' })
+              jsonResponse(res, 400, { error: '缺少 video（base64 data URL 或本机路径）' })
               return
+            }
+            // 允许直接传本机路径：面板里选完文件拿到的就是路径，没必要让前端先读成 base64
+            if (!body.video.startsWith('data:')) {
+              try {
+                const { readFile: readLocal } = await import('node:fs/promises')
+                const ext = (body.video.split('.').pop() ?? 'mp4').toLowerCase()
+                const mime = ext === 'webm' ? 'video/webm' : ext === 'mov' ? 'video/quicktime' : 'video/mp4'
+                const bytes = await readLocal(body.video)
+                body.video = `data:${mime};base64,${bytes.toString('base64')}`
+              } catch (error) {
+                jsonResponse(res, 400, {
+                  error: `读不到视频文件：${error instanceof Error ? error.message : String(error)}`,
+                })
+                return
+              }
             }
             const wantFrames = ALLOWED_FRAME_COUNTS.includes((body.frames ?? 6) as 4 | 6 | 8)
               ? (body.frames as number) : 6

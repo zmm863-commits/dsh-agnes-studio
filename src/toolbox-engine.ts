@@ -130,10 +130,18 @@ export async function handleToolboxRoute(
     return { status: 404, data: { error: '文件不存在' } }
   }
 
-  // GET /tts/* - 文本转音频
-  if (method === 'GET' && sub.startsWith('tts/')) {
-    const id = sub.slice('tts/'.length)
-    return { status: 200, data: { success: true, url: `/toolbox/tts/${id}.mp3` } }
+  // POST /tts - 文本转音频（真实 MiMo TTS，返回可直接播放的 data URL）
+  if (method === 'POST' && sub === 'tts') {
+    const { text, voice } = body as { text?: string; voice?: string }
+    const content = String(text ?? '').trim()
+    if (content === '') return { status: 400, data: { error: '缺少 text' } }
+    if (content.length > 2000) return { status: 400, data: { error: '一次最多 2000 字，请分段' } }
+    try {
+      const audio = await synthesizeSpeech(host, content, String(voice ?? 'mimo_default'))
+      return { status: 200, data: { success: true, audio: `data:audio/wav;base64,${audio}`, bytes: Math.round(audio.length * 0.75) } }
+    } catch (error) {
+      return { status: 500, data: { error: error instanceof Error ? error.message : String(error) } }
+    }
   }
 
   return null
@@ -160,6 +168,32 @@ function execFileAsync(command: string, args: string[], timeout: number): Promis
       })
     })
   })
+}
+
+/**
+ * 用 MiMo TTS 合成一段语音，返回 base64（WAV）。
+ *
+ * 契约与 anchor-engine 一致（已对线上验证过）：
+ * POST /chat/completions 带 `audio` 块，WAV 以 base64 回在 choices[0].message.audio.data。
+ */
+async function synthesizeSpeech(host: ToolboxHost, text: string, voice: string): Promise<string> {
+  const data = await host.call('mimo', '/chat/completions', {
+    body: {
+      model: 'mimo-v2.5-tts',
+      messages: [
+        { role: 'user', content: '自然、清晰、适合中文口播。语速中等，节奏稳定。' },
+        { role: 'assistant', content: text },
+      ],
+      audio: { format: 'wav', voice: voice === '' ? 'mimo_default' : voice },
+    },
+    timeoutMs: 180_000,
+  }) as { choices?: Array<{ message?: { audio?: { data?: string } } }>; error?: { message?: string } }
+  const b64 = data.choices?.[0]?.message?.audio?.data
+  if (typeof b64 !== 'string' || b64 === '') {
+    const detail = data.error?.message ?? '响应里没有 audio.data'
+    throw new Error(`TTS 返回异常：${detail}`)
+  }
+  return b64
 }
 
 // ─── 核心算法 ──────────────────────────────────────────────────────────────

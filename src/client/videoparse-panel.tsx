@@ -259,24 +259,24 @@ function VptPanel() {
     setError('')
 
     try {
-      const data = await apiCall<{ id: string }>(API_VPT, 'POST', '/generate', { video_file: videoFile })
-
-      // 轮询状态
-      const pollStatus = async () => {
-        const statusData = await apiCall<{ task: VptTask }>(API_VPT, 'GET', `/status/${data.id}`)
-        setCurrentTask(statusData.task)
-        if (statusData.task.status === 'completed') {
-          setLoading(false)
-        } else if (statusData.task.status === 'failed') {
-          setLoading(false)
-          setError(statusData.task.message)
-        } else {
-          setTimeout(pollStatus, 1000)
-        }
-      }
-      pollStatus()
+      // 真实接口：抽帧 + 视觉模型，同步返回提示词（旧 /generate 已下线）
+      const data = await apiCall<{ prompt?: string; frames?: number; duration?: number; error?: string }>(
+        API_VPT, 'POST', '/video',
+        { video: videoFile.trim(), frames: 6, target: 'general', lang: 'zh' },
+      )
+      if (data.prompt === undefined || data.prompt === '') throw new Error('后端没有返回提示词')
+      setCurrentTask({
+        id: 'live',
+        status: 'completed',
+        message: `已完成：${data.frames ?? 0} 帧 / ${Math.round(data.duration ?? 0)}s`,
+        video_file: videoFile,
+        prompt: data.prompt,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : '生成失败')
+    } finally {
       setLoading(false)
     }
   }, [videoFile])

@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataRoot } from './ffmpeg.js'
+import { runMvPipeline, type MvShot } from './mv-pipeline.js'
 
 // ─── Host 能力注入 ──────────────────────────────────────────────────────────
 
@@ -43,6 +44,10 @@ export interface MvTask {
   music_id?: string
   design_id?: string
   video_id?: string
+  /** 真实分镜（每段的画面与提示词）。 */
+  shots?: MvShot[]
+  /** 拼好的成片路径。 */
+  final_file?: string
   // 配置
   text_model: string
   image_model: string
@@ -243,41 +248,37 @@ async function runMvGeneration(taskId: string, host: MvHost): Promise<void> {
   const task = mvTasks.get(taskId)
   if (!task) return
 
+  const dir = join(MV_DIR, taskId)
+  mkdirSync(dir, { recursive: true })
+
+  const onProgress = (status: string, message: string): void => {
+    task.status = status as MvStatus
+    task.message = message
+    task.updated_at = Date.now()
+    saveToDisk(task)
+  }
+
   try {
-    // 阶段 1：谱曲
-    task.status = 'music'
-    task.message = '正在谱曲...'
-    task.updated_at = Date.now()
-    saveToDisk(task)
-    await new Promise(r => setTimeout(r, 2000))
-    task.music_id = `music_${taskId}`
+    const result = await runMvPipeline(
+      {
+        task: {
+          task_id: task.task_id,
+          audio_file: task.audio_file,
+          lyrics: task.lyrics,
+          text_model: task.text_model,
+          video_model: task.video_model,
+        },
+        call: async (vendor, endpoint, opts) => host.call(vendor, endpoint, opts),
+        dir,
+      },
+      onProgress,
+    )
 
-    // 阶段 2：设计
-    task.status = 'design'
-    task.message = '正在设计...'
-    task.updated_at = Date.now()
-    saveToDisk(task)
-    await new Promise(r => setTimeout(r, 2000))
-    task.design_id = `design_${taskId}`
-
-    // 阶段 3：分镜
-    task.status = 'storyboard'
-    task.message = '正在生成分镜...'
-    task.updated_at = Date.now()
-    saveToDisk(task)
-    await new Promise(r => setTimeout(r, 2000))
-
-    // 阶段 4：视频
-    task.status = 'video'
-    task.message = '正在生成视频...'
-    task.updated_at = Date.now()
-    saveToDisk(task)
-    await new Promise(r => setTimeout(r, 2000))
-    task.video_id = `video_${taskId}`
-
-    // 完成
+    task.shots = result.shots
+    task.final_file = result.finalFile
+    task.video_id = result.videoFile
     task.status = 'completed'
-    task.message = '生成完成'
+    task.message = `生成完成：${result.shots.length} 段 · ${result.finalFile}`
     task.updated_at = Date.now()
     saveToDisk(task)
   } catch (e) {
