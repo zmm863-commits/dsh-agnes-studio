@@ -528,7 +528,7 @@ export function ModelConfigPanel(): unknown {
           },
         }),
         createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
+          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
           disabled: busy,
           onClick: () => { void saveVendor(vendor) },
         }, '保存'),
@@ -629,7 +629,7 @@ export function ModelConfigPanel(): unknown {
           onChange: (e: Event) => setNewModel(prev => ({ ...prev, apiKey: (e.target as HTMLInputElement).value })),
         }),
         createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
+          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
           disabled: busy || newModel.id.trim() === '' || newModel.baseUrl.trim() === '',
           onClick: () => { void addCustom() },
         }, '添加'),
