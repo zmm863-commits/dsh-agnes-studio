@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "title": { "zh": "泡泡猫插件市场", "en": "Paopaocat Plugin Index" },
+  "description": {
+    "zh": "泡泡猫出品的 DSH 插件集合：影视创作工作站、骰子游戏、界面增强等。",
+    "en": "DSH plugins by Paopaocat: film & video studio, dice game, UI enhancements."
+  },
+  "metadata": {
+    "categories": {
+      "creative": { "title": { "zh": "创作工具", "en": "Creative tools" } },
+      "game": { "title": { "zh": "游戏娱乐", "en": "Games" } }
+    },
+    "labels": {
+      "free-quota": { "title": { "zh": "免费额度优先", "en": "Free quotas first" } }
+    },
+    "sortKeys": {
+      "stars": { "title": { "zh": "收藏数", "en": "Stars" }, "order": "desc" }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-agnes-studio",
+      "title": { "zh": "泡泡猫的影视工具", "en": "Paopaocat Film Studio" },
+      "description": {
+        "zh": "生图 / 生视频 / 短剧 / 口播 / 封面 / 视频解析，并把 Oh Story 的短剧、网文、视频解说、小说改游戏技能全量并入。v1.0.0 重构：15 个页面统一「左展示 / 右参数」两列骨架，深色皮肤统一，历史空壳功能全部换成真实实现。需要 DSH 0.2.2-rc.3（官方包 ^0.1.0-rc.6 || ^0.2.0-rc.1）。",
+        "en": "Image / video generation, short drama, anchor narration, covers and video analysis, bundling Oh Story skills. v1.0.0 refactor: unified two-column layout across 15 pages, dark-only skin, all former stubs replaced with real implementations. Requires DSH 0.2.2-rc.3."
+      },
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNiIgZmlsbD0iIzFhMWYzNSIvPjxjaXJjbGUgY3g9IjI0IiBjeT0iMjQiIHI9IjYiIGZpbGw9IiM3YzlhZmYiLz48cGF0aCBkPSJNMTIgNDRsMTItMTQgMTAgMTIgOC05IDEwIDEzSDEyeiIgZmlsbD0iIzRmZDFlNiIvPjwvc3ZnPg==",
+      "author": "zmm863-commits",
+      "homepage": "https://gitee.com/paopaocat/dsh-agnes-studio",
+      "repository": { "url": "https://gitee.com/paopaocat/dsh-agnes-studio" },
+      "metadata": {
+        "category": "creative",
+        "keywords": ["dsh-plugin", "deepseek-harness", "agnes", "ai-image", "ai-video", "storyboard", "short-drama", "oh-story"],
+        "labels": ["free-quota"],
+        "sortKeys": {}
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1795700000,
+          "source": { "type": "npm", "registry": "https://registry.npmjs.org" },
+          "engines": { "dsh": "^0.2.0-rc.1" }
+        }
+      ]
+    }
+  ]
+}
