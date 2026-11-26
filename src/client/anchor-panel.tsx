@@ -13,11 +13,13 @@ import {
   fetchFfmpegStatus, fileToDataUrl, ANCHOR_VOICES,
   type VisualMode, type AnchorStatusPayload, type AnchorSegment,
 } from './anchor.ts'
+import { iconSvg } from './icons.ts'
 
+// 图标用 SVG（icons.ts），不用 emoji：无 emoji 字体的系统上会显示成方框
 const MODES: Array<{ id: VisualMode; icon: string; name: string; desc: string }> = [
-  { id: 'static', icon: '🖼', name: '静态形象图', desc: '一张形象图循环展示（最快最稳）' },
-  { id: 'clip', icon: '🎞', name: '视频素材', desc: '上传视频按旁白长度循环/截取' },
-  { id: 'ai', icon: '✨', name: 'AI 生成画面', desc: '用 AI 生成背景片再铺满（约 2-4 分钟）' },
+  { id: 'static', icon: 'image', name: '静态形象图', desc: '一张形象图循环展示（最快最稳）' },
+  { id: 'clip', icon: 'video', name: '视频素材', desc: '上传视频按旁白长度循环/截取' },
+  { id: 'ai', icon: 'expert', name: 'AI 生成画面', desc: '用 AI 生成背景片再铺满（约 2-4 分钟）' },
 ]
 
 const SAMPLE = '大家好，欢迎使用泡泡猫的影视工具。这里是数字人口播功能，只要输入文稿，系统就会自动完成分段、配音、画面和字幕。'
@@ -169,7 +171,7 @@ export function AnchorPanel() {
           onClick: () => setMode(m.id),
           title: m.desc,
         },
-          createElement('span', { className: 'agnes-mode-icon' }, m.icon),
+          createElement('span', { className: 'agnes-mode-icon', dangerouslySetInnerHTML: { __html: iconSvg(m.icon, 18) } }),
           createElement('span', null, m.name),
           createElement('span', { className: 'agnes-mode-desc' }, m.desc),
         )),
@@ -281,7 +283,7 @@ export function AnchorPanel() {
     // 空态（还没有任务时也要有内容，避免右列塌成黑洞）
     !status
       ? createElement('div', { className: 'agcv-empty' },
-          createElement('div', { className: 'agnes-empty-icon' }, '🎙'),
+          createElement('div', { className: 'agnes-empty-icon', dangerouslySetInnerHTML: { __html: iconSvg('anchor', 22) } }),
           createElement('div', { className: 'agnes-empty-title' }, '口播成片'),
           createElement('div', { className: 'agcv-hint' }, '左侧填写文稿并选择画面模式，点击生成后成片会出现在这里'),
           createElement('div', { className: 'agcv-slot-row' },

@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback, createElement } from './react-shim.ts'
 import { StudioSplit } from './split-layout.tsx'
+import { iconSvg } from './icons.ts'
 
 import { injectStyles } from './styles.ts'
 import { fetchExpertTypes, generateExpertPrompt, type ExpertType } from './prompt-expert.ts'
@@ -14,6 +15,17 @@ interface Props {
   onUseForImage?: (prompt: string) => void
   /** 把生成的提示词直接送到「生视频」页。未提供时不显示该按钮。 */
   onUseForVideo?: (prompt: string) => void
+}
+
+/** 专家类型 → SVG 图标名（服务端给的是 emoji，没有 emoji 字体会变方框）。 */
+const EXPERT_ICONS: Record<string, string> = {
+  t2i: 'image',
+  i2i: 'cover',
+  t2v: 'video',
+  story: 'novel',
+  drama: 'storyboard',
+  anchor: 'anchor',
+  vpt: 'vpt',
 }
 
 export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: Props) {
@@ -74,7 +86,7 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
           className: `pe-type${t.key === selected ? ' active' : ''}`,
           onClick: () => { setSelected(t.key); setParams({}); setResult(''); setError('') },
         },
-          createElement('span', { className: 'pe-type-icon' }, t.icon),
+          createElement('span', { className: 'pe-type-icon', dangerouslySetInnerHTML: { __html: iconSvg(EXPERT_ICONS[t.key] ?? 'expert', 14) } }),
           createElement('span', null, t.name),
         )),
       ),

@@ -1,5 +1,22 @@
 # 🎬 dsh-agnes-studio — 泡泡猫的影视工具
 
+> **v1.0.0 重构版** · 15 个页面统一为「左展示 / 右参数」两列骨架，统一深色皮肤与表单控件，
+> 此前的空壳功能（背景视频 / MTV / 公众号 / 小说工具 / 工具箱 TTS / 视频反推）全部换成真实实现。
+> 📖 完整发布说明（每项都带截图或成片）：[docs/release/v1.0.0/README.md](docs/release/v1.0.0/README.md)
+
+## 兼容性
+
+| 项目 | 要求 |
+|---|---|
+| **DSH 版本** | **0.2.2-rc.3（实测通过）** |
+| 官方包范围 | `dsh-host-webserver` / `dsh-client-runtime`：`^0.1.0-rc.6 \|\| ^0.2.0-rc.1` |
+| Cordis | `^4.0.1` |
+| 客户端注入 | runtime / store / ui-conversation / ui-layout / ui-tool（缺一不可） |
+| 平台 | web（桌面版与 `dsh web` 均可） |
+| 本机依赖 | ffmpeg + ffprobe、任一 CJK 字体；口播另需 `MIMO_API_KEY` |
+
+> 宿主半改动需**重启 DSH**；客户端半刷新页面即可。
+
 充分利用 Agnes AI 免费生图/视频大模型的 DSH 插件（内部名：Agnes 创意工作站）。
 
 ## 界面

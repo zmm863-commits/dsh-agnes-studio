@@ -11,6 +11,7 @@
  * 视图共用，逐个列在调用处反而更难看出它们共享了什么。
  */
 import { createElement } from './react-shim.ts'
+import { iconSvg } from './icons.ts'
 import {
   type DramaTask, createDrama, importScript, getDramaStatus, stopDrama, resumeDrama, confirmDrama,
   regenerateDrama, generateAllShotVideos, mergeDrama, pollDramaStatus, saveDramaTask, listDramaTasks,
@@ -379,7 +380,7 @@ export function renderCenter(v: DramaViewVars): unknown {
         createElement(
           'div',
           { className: 'agnes-empty' },
-          createElement('div', { className: 'agnes-empty-icon' }, '🎬'),
+          createElement('div', { className: 'agnes-empty-icon', dangerouslySetInnerHTML: { __html: iconSvg('storyboard', 22) } }),
           createElement('div', { className: 'agnes-empty-title' }, '短剧创作工作台'),
           createElement(
             'div',

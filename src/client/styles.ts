@@ -41,10 +41,11 @@ import { tabFixStyles } from './styles/26-tab-fix.ts'
 import { coverOrderStyles, expertStyles, fileInputStyles, splitLayoutStyles, tabbedPageStyles } from './styles/27-split.ts'
 import { fileFieldStyles, flatSectionsStyles, formControlStyles } from './styles/28-forms.ts'
 import { buttonStyles } from './styles/29-buttons.ts'
+import { anchorCompactStyles, moduleAccentStyles } from './styles/30-module.ts'
 
 const TAB_FIX_CSS = tabFixStyles
 const SPLIT_CSS = splitLayoutStyles + tabbedPageStyles + coverOrderStyles + expertStyles + fileInputStyles
-const FORMS_CSS = formControlStyles + fileFieldStyles + flatSectionsStyles + buttonStyles
+const FORMS_CSS = formControlStyles + fileFieldStyles + flatSectionsStyles + buttonStyles + moduleAccentStyles + anchorCompactStyles
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。

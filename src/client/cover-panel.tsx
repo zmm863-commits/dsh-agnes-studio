@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, createElement } from './react-shim.ts'
+import { iconSvg } from './icons.ts'
 
 import { injectStyles } from './styles.ts'
 import { generateImage } from './studio.ts'
@@ -238,7 +239,7 @@ export function CoverPanel({ imageModels }: { imageModels: Record<string, string
           : createElement('div', { className: 'agcv-empty' },
               // 3:4 虚线海报框，明确告诉用户"封面会出现在这里"
               createElement('div', { className: 'agcv-poster-slot' },
-                createElement('div', { className: 'agnes-empty-icon' }, '📕'),
+                createElement('div', { className: 'agnes-empty-icon', dangerouslySetInnerHTML: { __html: iconSvg('cover', 22) } }),
                 createElement('div', { className: 'agcv-poster-title' }, '封面预览位'),
                 createElement('div', { className: 'agcv-hint' }, '3 : 4 标准比例'),
               ),
