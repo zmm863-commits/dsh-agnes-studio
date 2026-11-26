@@ -111,6 +111,114 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; sta
 }
 
 /** 模型配置页。 */
+// ─── ComfyUI（仙宫云 / 自建）──────────────────────────────────────────────
+
+function ComfySection() {
+  const [baseUrl, setBaseUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [checkpoint, setCheckpoint] = useState('')
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const resp = await fetch('/agnes-studio/api/comfy/config')
+        const data = await resp.json() as { baseUrl?: string; checkpoint?: string; hasToken?: boolean }
+        setBaseUrl(data.baseUrl ?? '')
+        setCheckpoint(data.checkpoint ?? '')
+        setStatus(data.hasToken === true ? '已保存令牌' : '')
+      } catch { /* 读不到就当未配置 */ }
+    })()
+  }, [])
+
+  const save = useCallback(async () => {
+    setBusy(true); setError('')
+    try {
+      const resp = await fetch('/agnes-studio/api/comfy/config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseUrl, token, checkpoint }),
+      })
+      const data = await resp.json() as { ok?: boolean; error?: string }
+      if (!resp.ok || data.ok !== true) throw new Error(data.error ?? `HTTP ${resp.status}`)
+      setToken('')
+      setStatus('已保存')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败')
+    } finally { setBusy(false) }
+  }, [baseUrl, token, checkpoint])
+
+  const probe = useCallback(async () => {
+    setBusy(true); setError('')
+    try {
+      const resp = await fetch('/agnes-studio/api/comfy/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const data = await resp.json() as { ok?: boolean; detail?: string }
+      setStatus(data.detail ?? '')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '连接失败')
+    } finally { setBusy(false) }
+  }, [])
+
+  return createElement('div', { className: 'agnes-section' },
+    createElement('div', { className: 'agnes-section-title' }, 'ComfyUI（可选）'),
+    createElement('div', { style: HINT },
+      '填了就能用本机的 ComfyUI / 仙宫云实例出图。密钥只存本机，不发给浏览器。'),
+    error !== '' && createElement('div', { className: 'agnes-mcfg-note' }, error),
+    status !== '' && createElement('div', { className: 'agnes-mcfg-note' }, status),
+    createElement('div', { className: 'agnes-mcfg-row' },
+      createElement('input', {
+        className: 'agnes-input', placeholder: '实例地址，例如 https://xxx.x-gpu.com',
+        value: baseUrl, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setBaseUrl(e.target.value),
+      }),
+      createElement('input', {
+        className: 'agnes-input', placeholder: '访问令牌（可空）', type: 'password',
+        value: token, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setToken(e.target.value),
+      }),
+      createElement('input', {
+        className: 'agnes-input', placeholder: '默认 checkpoint 名',
+        value: checkpoint, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCheckpoint(e.target.value),
+      }),
+      createElement('button', { className: 'agnes-btn agnes-btn-primary', disabled: busy, onClick: () => { void save() } }, '保存'),
+      createElement('button', { className: 'agnes-btn agnes-btn-secondary', disabled: busy, onClick: () => { void probe() } }, '测试'),
+    ),
+  )
+}
+
+// ─── KEY 池 ────────────────────────────────────────────────────────────────
+
+interface PoolView {
+  vendor: string
+  size: number
+  keys: Array<{ masked: string; available: boolean; cooldownSec: number; okCount: number; failCount: number }>
+}
+
+function KeyPoolSection() {
+  const [pools, setPools] = useState<PoolView[]>([])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const resp = await fetch('/agnes-studio/api/keypool')
+        const data = await resp.json() as { pools?: PoolView[] }
+        setPools((data.pools ?? []).filter(pool => pool.size > 0))
+      } catch { /* 读不到就不显示 */ }
+    })()
+  }, [])
+
+  if (pools.length === 0) return null
+
+  return createElement('div', { className: 'agnes-section' },
+    createElement('div', { className: 'agnes-section-title' }, 'KEY 池'),
+    createElement('div', { style: HINT }, '限流按账号算；多把不同账号的 KEY ≈ 多倍并发。加 <厂商>_API_KEY_2 / _3 即可进池。'),
+    ...pools.map(pool => createElement('div', { key: pool.vendor, className: 'agnes-mcfg-dsh' },
+      createElement('span', { className: 'agnes-mcfg-name' }, `${pool.vendor}（${pool.size} 把）`),
+      createElement('span', { style: HINT }, pool.keys.map(key =>
+        `${key.masked}${key.available ? '' : `（冷却 ${key.cooldownSec}s）`}`).join(' · ')),
+    )),
+  )
+}
+
 export function ModelConfigPanel(): unknown {
   const [view, setView] = useState<ConfigView | null>(null)
   const [notReady, setNotReady] = useState(false)
@@ -238,10 +346,8 @@ export function ModelConfigPanel(): unknown {
     return createElement('div', { className: 'agnes-mcfg' },
       createElement('div', { className: 'agnes-section' },
         createElement('div', { className: 'agnes-section-title' }, '模型配置'),
-        createElement('div', { style: { ...HINT, color: 'rgba(255, 214, 102, 0.9)' } },
-          '这一版的后端路由要重启 DSH 才会加载。重启后本页即可直接填密钥、测试连通性。'),
         createElement('div', { style: HINT },
-          '在此之前，模型清单与密钥仍然沿用「DSH 凭据 / .env」的老路径，功能不受影响。'),
+          '密钥只存本机、只在宿主进程里使用；网页里永远只看到打码后的形态。'),
       ),
     )
   }
@@ -428,5 +534,11 @@ export function ModelConfigPanel(): unknown {
           : createElement('div', { style: HINT }, '宿主没有暴露 llm 服务（或没有配置任何厂商），这里为空。'),
       )
     })(),
+
+    // ── ComfyUI ──
+    createElement(ComfySection),
+
+    // ── KEY 池 ──
+    createElement(KeyPoolSection),
   )
 }

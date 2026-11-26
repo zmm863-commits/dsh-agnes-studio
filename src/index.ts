@@ -20,6 +20,13 @@ import { handleNovelSplitRoute, handleDeaiRoute, rehydrateNovelSplit, type Novel
 import { handleToolboxRoute, rehydrateToolbox, type ToolboxHost } from './toolbox-engine.js'
 import { handleVideoparseRoute, handleVptRoute, rehydrateVideoparse, renderAnalysisReport, type VideoparseHost } from './videoparse-engine.js'
 import { burnSubtitles, concatClips, composeReady, kenBurnsClip } from './video-compose.js'
+import {
+  brollIndexPath, downloadPexels, loadBrollIndex, matchBroll, removeBrollAsset, scanBroll, searchPexels,
+} from './broll-engine.js'
+import { alignLyrics, cuesToLrc, cuesToSrt } from './lyric-align.js'
+import { acquireKey, describePool, poolSize, reportKeyResult } from './key-pool.js'
+import { comfyCheckpoints, comfyGenerate, comfyStatus, loadComfyConfig, saveComfyConfig } from './comfyui-engine.js'
+import { runAnimate } from './animate-engine.js'
 import { handleWechatRoute, handleLocalfilesRoute, rehydrateWechat, rehydrateLocalfiles, type WechatHost } from './wechat-engine.js'
 import { COVER_STYLES, analyzeNovelFile, buildCoverPrompt } from './cover-engine.js'
 import { handlePromptExpertRoute, generatePromptExpert, EXPERT_TYPES } from './prompt-expert-engine.js'
@@ -143,7 +150,19 @@ function optionalService(ctx: Context, name: string): unknown {
  * Resolve the API key for a specific vendor.
  * Priority: vendor-specific credential → vendor-specific env → Agnes fallback → error.
  */
+/** 记录每个厂商最近一次解析出来的 KEY（供 vendorFetch 上报冷却）。 */
+const currentKeyByVendor = new Map<string, string>()
+
 async function resolveApiKeyForVendor(ctx: Context, vendor: string, modelId = ''): Promise<string> {
+  // 池子里有多把 KEY 时优先轮换（限流按账号算，多账号 ≈ 多倍并发）。
+  try {
+    const pooled = acquireKey(vendor)
+    if (pooled.source === 'pool') {
+      currentKeyByVendor.set(vendor, pooled.key)
+      return pooled.key
+    }
+  } catch { /* 池子为空，继续走原来的解析链 */ }
+
   // Ollama doesn't need a key
   if (vendor === 'ollama') return 'ollama'
 
@@ -299,6 +318,27 @@ function readBody(req: IncomingMessage): Promise<string> {
  * Video submission is deliberately NOT retried by default: a duplicate submit
  * would create a second task and burn quota.
  */
+/**
+ * 从请求 URL 反推厂商，并把结果回报给 KEY 池（用于冷却）。
+ *
+ * 只在 URL 能对应到已知厂商时才上报，识别不出来就静默跳过 —— 宁可少记一次，
+ * 也不要记错厂商把正常 KEY 冻住。
+ */
+function reportPoolResult(url: string, status: number): void {
+  try {
+    const known = ['agnes', 'deepseek', 'qwen', 'doubao', 'minimax', 'mimo', 'ollama']
+    const lower = url.toLowerCase()
+    for (const vendor of known) {
+      const host = VENDOR_BASE_URLS[vendor] ?? ''
+      if (host !== '' && lower.includes(host.replace(/^https?:\/\//, ''))) {
+        const entry = currentKeyByVendor.get(vendor)
+        if (entry !== undefined) reportKeyResult(vendor, entry, status)
+        return
+      }
+    }
+  } catch { /* 观测失败不影响主流程 */ }
+}
+
 async function vendorFetch(
   url: string,
   opts: {
@@ -318,8 +358,12 @@ async function vendorFetch(
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const resp = await fetch(url, { ...fetchOpts, signal: controller.signal })
-      if (resp.ok) return await resp.json()
+      if (resp.ok) {
+        reportPoolResult(url, resp.status)
+        return await resp.json()
+      }
 
+      reportPoolResult(url, resp.status)
       const text = await resp.text().catch(() => '')
       const err = new Error(`API ${resp.status}: ${text.slice(0, 500)}`)
       const transient = resp.status >= 500 || resp.status === 429
@@ -1228,6 +1272,247 @@ export function apply(ctx: Context): void {
             }
 
             jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        // ── 素材库 / 歌词对齐 / ComfyUI / 动作迁移 / KEY 池 ──────────────
+        if (path.startsWith('/agnes-studio/api/broll')) {
+          try {
+            const sub = path.slice('/agnes-studio/api/broll'.length).replace(/^\//, '')
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) as Record<string, unknown> : {}
+
+            if (method === 'GET' && sub === 'list') {
+              const index = loadBrollIndex()
+              jsonResponse(res, 200, {
+                ok: true,
+                index: brollIndexPath(),
+                roots: index.roots,
+                total: index.assets.length,
+                assets: index.assets.slice(0, 500),
+              })
+              return
+            }
+
+            if (method === 'POST' && sub === 'scan') {
+              const roots = Array.isArray(body.roots) ? body.roots.map(String) : []
+              if (roots.length === 0) { jsonResponse(res, 400, { error: '缺少 roots（要扫描的目录）' }); return }
+              const result = await scanBroll(roots)
+              jsonResponse(res, 200, { ok: true, ...result })
+              return
+            }
+
+            if (method === 'POST' && sub === 'match') {
+              const query = String(body.query ?? '')
+              const hits = matchBroll(query, {
+                minDurationSec: body.minDurationSec === undefined ? undefined : Number(body.minDurationSec),
+                maxDurationSec: body.maxDurationSec === undefined ? undefined : Number(body.maxDurationSec),
+                limit: body.limit === undefined ? undefined : Number(body.limit),
+              })
+              jsonResponse(res, 200, { ok: true, query, matches: hits })
+              return
+            }
+
+            if (method === 'POST' && sub === 'remove') {
+              const file = String(body.file ?? '')
+              jsonResponse(res, 200, { ok: removeBrollAsset(file) })
+              return
+            }
+
+            if (method === 'POST' && sub === 'pexels') {
+              const apiKey = process.env.PEXELS_API_KEY ?? ''
+              if (apiKey === '') {
+                jsonResponse(res, 501, {
+                  error: '没有配置 PEXELS_API_KEY。素材库默认用本地目录；要联网找素材，先在 .env 里加 PEXELS_API_KEY。',
+                })
+                return
+              }
+              const query = String(body.query ?? '').trim()
+              if (query === '') { jsonResponse(res, 400, { error: '缺少 query' }); return }
+              const candidates = await searchPexels(query, apiKey)
+              jsonResponse(res, 200, { ok: true, candidates })
+              return
+            }
+
+            if (method === 'POST' && sub === 'pexels/download') {
+              const candidate = body.candidate as { id?: number; url?: string; durationSec?: number; width?: number; height?: number; thumb?: string; author?: string } | undefined
+              if (candidate === undefined || candidate.url === undefined) {
+                jsonResponse(res, 400, { error: '缺少 candidate' })
+                return
+              }
+              const dir = join(dataRoot(), 'broll', 'pexels')
+              const file = await downloadPexels({
+                id: Number(candidate.id ?? 0),
+                url: String(candidate.url),
+                thumb: String(candidate.thumb ?? ''),
+                durationSec: Number(candidate.durationSec ?? 0),
+                width: Number(candidate.width ?? 0),
+                height: Number(candidate.height ?? 0),
+                author: String(candidate.author ?? ''),
+              }, dir)
+              jsonResponse(res, 200, { ok: true, file })
+              return
+            }
+
+            jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        if (path.startsWith('/agnes-studio/api/lyric')) {
+          try {
+            const sub = path.slice('/agnes-studio/api/lyric'.length).replace(/^\//, '')
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) as Record<string, unknown> : {}
+
+            if (method === 'POST' && sub === 'align') {
+              const lyrics = String(body.lyrics ?? '')
+              const audio = String(body.audio ?? body.audio_file ?? '')
+              if (lyrics.trim() === '') { jsonResponse(res, 400, { error: '缺少 lyrics' }); return }
+              if (audio === '') { jsonResponse(res, 400, { error: '缺少 audio（音频路径）' }); return }
+              const result = await alignLyrics(lyrics, audio, {
+                snapWindowSec: body.snapWindowSec === undefined ? undefined : Number(body.snapWindowSec),
+              })
+              jsonResponse(res, 200, {
+                ok: true,
+                ...result,
+                srt: cuesToSrt(result.cues),
+                lrc: cuesToLrc(result.cues),
+              })
+              return
+            }
+
+            jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        if (path.startsWith('/agnes-studio/api/comfy')) {
+          try {
+            const sub = path.slice('/agnes-studio/api/comfy'.length).replace(/^\//, '')
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) as Record<string, unknown> : {}
+
+            if (method === 'GET' && sub === 'config') {
+              const config = loadComfyConfig()
+              jsonResponse(res, 200, {
+                ok: true,
+                baseUrl: config.baseUrl,
+                checkpoint: config.checkpoint,
+                hasToken: config.token !== '',
+              })
+              return
+            }
+
+            if (method === 'POST' && sub === 'config') {
+              const current = loadComfyConfig()
+              const next = {
+                baseUrl: body.baseUrl === undefined ? current.baseUrl : String(body.baseUrl).trim(),
+                token: body.token === undefined || String(body.token) === '' ? current.token : String(body.token).trim(),
+                checkpoint: body.checkpoint === undefined ? current.checkpoint : String(body.checkpoint).trim(),
+              }
+              saveComfyConfig(next)
+              jsonResponse(res, 200, { ok: true, baseUrl: next.baseUrl, checkpoint: next.checkpoint, hasToken: next.token !== '' })
+              return
+            }
+
+            if (method === 'POST' && sub === 'status') {
+              jsonResponse(res, 200, await comfyStatus(loadComfyConfig()))
+              return
+            }
+
+            if (method === 'POST' && sub === 'checkpoints') {
+              try {
+                const list = await comfyCheckpoints(loadComfyConfig())
+                jsonResponse(res, 200, { ok: true, checkpoints: list })
+              } catch (e) {
+                jsonResponse(res, 502, { ok: false, error: e instanceof Error ? e.message : String(e) })
+              }
+              return
+            }
+
+            if (method === 'POST' && sub === 'generate') {
+              const prompt = String(body.prompt ?? '').trim()
+              if (prompt === '') { jsonResponse(res, 400, { error: '缺少 prompt' }); return }
+              const result = await comfyGenerate(loadComfyConfig(), prompt, {
+                negative: body.negative === undefined ? undefined : String(body.negative),
+                seed: body.seed === undefined ? undefined : Number(body.seed),
+                steps: body.steps === undefined ? undefined : Number(body.steps),
+              })
+              jsonResponse(res, result.ok ? 200 : 502, result)
+              return
+            }
+
+            jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        if (path.startsWith('/agnes-studio/api/animate')) {
+          try {
+            const sub = path.slice('/agnes-studio/api/animate'.length).replace(/^\//, '')
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) as Record<string, unknown> : {}
+
+            if (method === 'POST' && sub === 'transfer') {
+              const result = await runAnimate(
+                {
+                  call: async (vendor, endpoint, opts) => {
+                    const apiKey = await resolveApiKeyForVendor(ctx, vendor)
+                    // 厂商 base URL 通常已经带 /v1，而调用方习惯写 '/v1/videos'，
+                    // 直接拼会变成 /v1/v1/videos —— 这里统一收敛一次。
+                    const base = getVendorBaseUrl(vendor).replace(/\/+$/, '')
+                    const url = base.endsWith('/v1') && endpoint.startsWith('/v1/')
+                      ? base + endpoint.slice(3)
+                      : base + endpoint
+                    const resp = await vendorFetch(url, {
+                      method: opts?.method ?? 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+                      body: opts?.body === undefined ? undefined : JSON.stringify(opts.body),
+                      timeoutMs: opts?.timeoutMs,
+                    })
+                    return resp
+                  },
+                },
+                {
+                  image: String(body.image ?? ''),
+                  referenceVideo: body.referenceVideo === undefined ? undefined : String(body.referenceVideo),
+                  prompt: body.prompt === undefined ? undefined : String(body.prompt),
+                  seconds: body.seconds === undefined ? undefined : Number(body.seconds),
+                  model: body.model === undefined ? undefined : String(body.model),
+                },
+              )
+              jsonResponse(res, result.ok ? 200 : 502, result)
+              return
+            }
+
+            jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        if (path.startsWith('/agnes-studio/api/keypool')) {
+          try {
+            const body = method === 'POST' ? JSON.parse(await readBody(req)) as Record<string, unknown> : {}
+            const vendors = ['agnes', 'deepseek', 'qwen', 'doubao', 'minimax', 'mimo', 'ollama']
+            jsonResponse(res, 200, {
+              ok: true,
+              pools: vendors.map(vendor => ({
+                vendor,
+                size: poolSize(vendor),
+                keys: describePool(vendor),
+              })),
+              note: '每把 KEY 前 4 后 4 可见。要加多把，用 <VENDOR>_API_KEY_2、_3 这样的环境变量。',
+            })
+            void body
+            return
           } catch (e) {
             jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
           }
