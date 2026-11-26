@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataRoot } from './ffmpeg.js'
+import { modelFor } from './model-defaults.js'
 
 // ─── Host 能力注入 ──────────────────────────────────────────────────────────
 
@@ -370,7 +371,7 @@ export async function handleDeaiRoute(
       message: '正在处理...',
       text,
       op: op || 'medium',
-      model: model || 'agnes-3.0-flash',
+      model: modelFor('text', model),
       created_at: Date.now(),
       updated_at: Date.now(),
     }

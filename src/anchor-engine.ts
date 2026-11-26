@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto'
 import { writeFileSync, existsSync, statSync, readFileSync, readdirSync } from 'node:fs'
 import { join, basename, resolve } from 'node:path'
+import { modelFor } from './model-defaults.js'
 import {
   anchorDir, probeMedia, concatAudio, concatVideos, muxNarration, imageToVideo,
   buildSrt, findCjkFont, ffmpeg, ffmpegStatus, dataRoot,
@@ -231,6 +232,16 @@ async function materialize(
         : Buffer.from(decodeURIComponent(m[3]), 'binary')
       if (buf.length === 0) return { ok: false, error: '上传素材为空' }
       writeFileSync(file, buf)
+      return { ok: true, file }
+    }
+    // 本机路径：直接读，不用先转 data URL（否则 fetch 会报 "Failed to parse URL"）
+    if (!/^https?:\/\//i.test(input.value)) {
+      const source = input.value
+      if (!existsSync(source)) return { ok: false, error: `找不到素材文件：${source}` }
+      const extMatch = /\.([a-z0-9]+)$/i.exec(source)
+      const ext = extMatch === null ? '.bin' : `.${extMatch[1].toLowerCase()}`
+      const file = destWithoutExt + ext
+      writeFileSync(file, readFileSync(source))
       return { ok: true, file }
     }
     const r = await fetch(input.value)

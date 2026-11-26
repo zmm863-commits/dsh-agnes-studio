@@ -228,10 +228,22 @@ function DeaiPanel() {
 
       // 轮询状态
       const pollStatus = async () => {
-        const statusData = await apiCall<{ status: string; message: string; text?: string }>(API_DEAI, 'GET', `/status/${data.tid}`)
+        const statusData = await apiCall<{ status: string; message: string; text?: string; done?: number; total?: number }>(API_DEAI, 'GET', `/status/${data.tid}`)
+        // 之前这里只更新了 loading/error，**改写结果从来没被展示** —— 界面上会
+        // 显示"处理完成"但下面空白。宿主把结果放在 text 字段里，这里要接住。
+        setCurrentTask({
+          id: data.tid,
+          status: statusData.status as DeaiTask['status'],
+          message: statusData.message,
+          text: inputText,
+          op,
+          model: '',
+          result: statusData.text,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        })
         if (statusData.status === 'completed') {
           setLoading(false)
-          setError('处理完成')
         } else if (statusData.status === 'failed' || statusData.status === 'stopped') {
           setLoading(false)
           setError(statusData.message)

@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync, statSync, createReadStream } from 'node:fs'
 import { join, resolve, basename } from 'node:path'
+import { modelFor } from './model-defaults.js'
 import {
   concatVideos, buildSrt, burnSubtitles, probeMedia, ffmpegStatus,
   dramaDir, dataRoot,
