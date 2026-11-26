@@ -4,6 +4,7 @@
  */
 
 import { React, useState, useCallback, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ async function apiCall<T>(baseUrl: string, method: string, path: string, body?: 
 export function VideoparsePanel() {
   const [activeTab, setActiveTab] = useState<'parse' | 'vpt'>('parse')
 
-  return createElement('div', { className: 'videoparse-panel' },
+  return createElement('div', { className: 'videoparse-page' },
     // 标题
     createElement('div', { className: 'videoparse-header' },
       createElement('h3', null, '视频解析 + VPT'),
@@ -143,11 +144,31 @@ function ParsePanel() {
     }
   }, [videoFile])
 
-  return createElement('div', { className: 'parse-panel' },
+  return createElement(StudioSplit, {
+    title: '视频解析',
+    desc: 'ffmpeg 找真实切点，视觉模型读画面；拿不到语音识别就如实标注无台词。',
+    params: [
     error && createElement('div', { className: 'parse-error' }, error),
 
+    // 输入区域
+    createElement('div', { className: 'parse-section' },
+      createElement('h4', null, '输入视频'),
+      createElement('div', { className: 'parse-form' },
+        createElement('label', { className: 'parse-label' },
+          '视频文件路径',
+          createElement('input', { type: 'text', value: videoFile, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setVideoFile(e.target.value), placeholder: '/path/to/video.mp4' }),
+        ),
+        createElement('button', {
+          className: 'parse-btn parse-btn-primary',
+          onClick: handleParse,
+          disabled: loading || !videoFile.trim(),
+        }, loading ? '解析中...' : '开始解析'),
+      ),
+    ),
+    ],
+    children: [
     // 当前任务状态
-    currentTask && createElement('div', { className: 'parse-status' },
+    currentTask !== null && createElement('div', { className: 'parse-status' },
       createElement('div', { className: 'parse-status-header' },
         createElement('span', null, `任务 ${currentTask.id}`),
         createElement('span', { className: `parse-badge parse-badge-${currentTask.status}` },
@@ -160,22 +181,6 @@ function ParsePanel() {
             createElement('div', { className: 'agnes-progress-fill', style: { width: `${currentTask.percent}%` } }),
           )
         : null,
-    ),
-
-    // 输入区域
-    createElement('div', { className: 'parse-section' },
-      createElement('h4', null, '① 输入视频'),
-      createElement('div', { className: 'parse-form' },
-        createElement('label', { className: 'parse-label' },
-          '视频文件路径',
-          createElement('input', { type: 'text', value: videoFile, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setVideoFile(e.target.value), placeholder: '/path/to/video.mp4' }),
-        ),
-        createElement('button', {
-          className: 'parse-btn parse-btn-primary',
-          onClick: handleParse,
-          disabled: loading || !videoFile.trim(),
-        }, loading ? '解析中...' : '开始解析'),
-      ),
     ),
 
     // 解析结果
@@ -238,7 +243,10 @@ function ParsePanel() {
         ),
       )
     })(),
-  )
+      currentTask === null && createElement('div', { className: 'agnes-empty' },
+        '解析结果会显示在这里：整体理解、分镜表、台词与提示词。'),
+    ],
+  })
 }
 
 // ─── VPT 面板 ──────────────────────────────────────────────────────────────
@@ -281,23 +289,15 @@ function VptPanel() {
     }
   }, [videoFile])
 
-  return createElement('div', { className: 'vpt-panel' },
+  return createElement(StudioSplit, {
+    title: 'VPT 提示词',
+    desc: '抽帧后交给视觉模型，直接产出可用的视频提示词。',
+    params: [
     error && createElement('div', { className: 'vpt-error' }, error),
-
-    // 当前任务状态
-    currentTask && createElement('div', { className: 'vpt-status' },
-      createElement('div', { className: 'vpt-status-header' },
-        createElement('span', null, `任务 ${currentTask.id}`),
-        createElement('span', { className: `vpt-badge vpt-badge-${currentTask.status}` },
-          currentTask.status === 'running' ? '生成中' :
-          currentTask.status === 'completed' ? '已完成' : '失败'),
-      ),
-      createElement('p', null, currentTask.message),
-    ),
 
     // 输入区域
     createElement('div', { className: 'vpt-section' },
-      createElement('h4', null, '① 输入视频'),
+      createElement('h4', null, '输入视频'),
       createElement('div', { className: 'vpt-form' },
         createElement('label', { className: 'vpt-label' },
           '视频文件路径',
@@ -310,17 +310,32 @@ function VptPanel() {
         }, loading ? '生成中...' : '生成提示词'),
       ),
     ),
+    ],
+    children: [
+    // 当前任务状态
+    currentTask !== null && createElement('div', { className: 'vpt-status' },
+      createElement('div', { className: 'vpt-status-header' },
+        createElement('span', null, `任务 ${currentTask.id}`),
+        createElement('span', { className: `vpt-badge vpt-badge-${currentTask.status}` },
+          currentTask.status === 'running' ? '生成中' :
+          currentTask.status === 'completed' ? '已完成' : '失败'),
+      ),
+      createElement('p', null, currentTask.message),
+    ),
 
     // 生成结果
     currentTask?.status === 'completed' && createElement('div', { className: 'vpt-section' },
-      createElement('h4', null, '② 生成结果'),
+      createElement('h4', null, '生成结果'),
       createElement('div', { className: 'vpt-result' },
         createElement('textarea', {
           value: currentTask.prompt || '',
           readOnly: true,
-          rows: 6,
+          rows: 10,
         }),
       ),
     ),
-  )
+    currentTask === null && createElement('div', { className: 'agnes-empty' },
+      '生成的提示词会显示在这里，可直接复制去生视频。'),
+    ],
+  })
 }

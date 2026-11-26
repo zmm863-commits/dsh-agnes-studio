@@ -613,7 +613,7 @@ export function apply(ctx: Context): void {
           jsonResponse(res, 200, {
             capabilityDefaults: {
               defaults: loadModelConfig().defaults ?? {},
-              effective: { text: modelFor('text'), vision: modelFor('vision'), image: modelFor('image'), video: modelFor('video'), tts: modelFor('tts') },
+              effectiveDefaults: { text: modelFor('text'), vision: modelFor('vision'), image: modelFor('image'), video: modelFor('video'), tts: modelFor('tts') },
               fallback: CAPABILITY_FALLBACK,
               labels: CAPABILITY_LABEL,
             },

@@ -47,10 +47,10 @@ interface ConfigView {
   dsh: DshView
   /** 服务端返回的用途默认模型（本轮新增）。 */
   capabilityDefaults?: {
-    defaults: Record<string, string>
-    effective: Record<string, string>
-    fallback: Record<string, string>
-    labels: Record<string, string>
+    defaults?: Record<string, string>
+    effectiveDefaults?: Record<string, string>
+    fallback?: Record<string, string>
+    labels?: Record<string, string>
   }
   /** 模型清单（下拉用）。 */
   textModels?: Record<string, string>
