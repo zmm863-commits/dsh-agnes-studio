@@ -255,3 +255,29 @@ html[data-dsh-theme="light"] .agnes-empty {
   color: #667085;
 }
 `
+
+/**
+ * 封面页的列序修正：它本来就是两列，但表单在左、预览在右，
+ * 与其它页面「左展示 / 右参数」相反。这里只调顺序与列宽，不动结构。
+ */
+export const coverOrderStyles = `
+[data-dsh-agnes-studio] .agnes-cover-grid {
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: stretch;
+}
+[data-dsh-agnes-studio] .agnes-cover-grid > .agcv-form {
+  order: 2;
+  min-width: 0;
+}
+[data-dsh-agnes-studio] .agnes-cover-grid > .agcv-preview {
+  order: 1;
+  min-width: 0;
+}
+@media (max-width: 1080px) {
+  [data-dsh-agnes-studio] .agnes-cover-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-dsh-agnes-studio] .agnes-cover-grid > .agcv-form { order: 1; }
+  [data-dsh-agnes-studio] .agnes-cover-grid > .agcv-preview { order: 2; }
+}
+`
