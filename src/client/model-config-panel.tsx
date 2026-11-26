@@ -45,6 +45,17 @@ interface ConfigView {
   vendors: VendorView[]
   customModels: CustomModelView[]
   dsh: DshView
+  /** 服务端返回的用途默认模型（本轮新增）。 */
+  capabilityDefaults?: {
+    defaults: Record<string, string>
+    effective: Record<string, string>
+    fallback: Record<string, string>
+    labels: Record<string, string>
+  }
+  /** 模型清单（下拉用）。 */
+  textModels?: Record<string, string>
+  imageModels?: Record<string, string>
+  videoModels?: Record<string, string>
 }
 
 /** 来源标签。 */
@@ -111,6 +122,100 @@ async function postJson(path: string, body: unknown): Promise<{ ok: boolean; sta
 }
 
 /** 模型配置页。 */
+// ─── 默认模型（按用途）──────────────────────────────────────────────────
+
+interface CapabilityView {
+  defaults?: Record<string, string>
+  effectiveDefaults?: Record<string, string>
+}
+
+/**
+ * 五个用途各用哪个模型。
+ *
+ * 这是这次补上的一个洞：只有生图/生视频能选模型，而分镜、写稿、解析、配音
+ * 都在引擎里写死了名字。现在统一到这里 —— 选了之后所有对应功能一起生效。
+ */
+function DefaultsSection(props: {
+  capability: CapabilityView | null
+  textModels: Record<string, string>
+  imageModels: Record<string, string>
+  videoModels: Record<string, string>
+  onSaved: (message: string) => void
+  onError: (message: string) => void
+}) {
+  const { capability, textModels, imageModels, videoModels } = props
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setDraft(capability?.defaults ?? {})
+  }, [capability])
+
+  const options = (kind: 'text' | 'vision' | 'image' | 'video' | 'tts'): Array<[string, string]> => {
+    const base = kind === 'image' ? imageModels : kind === 'video' ? videoModels : textModels
+    const entries = Object.entries(base)
+    const current = capability?.effectiveDefaults?.[kind] ?? ''
+    if (current !== '' && !entries.some(([id]) => id === current)) entries.unshift([current, current])
+    return entries
+  }
+
+  const save = useCallback(async () => {
+    setBusy(true)
+    try {
+      const resp = await fetch('/agnes-studio/api/model-config/defaults', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      const data = await resp.json() as { ok?: boolean; error?: string }
+      if (!resp.ok || data.ok !== true) throw new Error(data.error ?? `HTTP ${resp.status}`)
+      props.onSaved('默认模型已保存，所有对应功能立即生效')
+    } catch (e) {
+      props.onError(e instanceof Error ? e.message : '保存失败')
+    } finally { setBusy(false) }
+  }, [draft, props])
+
+  const rows: Array<{ key: 'text' | 'vision' | 'image' | 'video' | 'tts'; label: string; hint: string }> = [
+    { key: 'text', label: '文本', hint: '分镜、文案、去 AI 味、公众号写稿' },
+    { key: 'vision', label: '视觉', hint: '视频解析、风格提炼、打标' },
+    { key: 'image', label: '图片', hint: '定妆照、封面、素材出图' },
+    { key: 'video', label: '视频', hint: '背景视频、短剧、MTV、动作迁移' },
+    { key: 'tts', label: '语音', hint: '口播配音、工具箱 TTS' },
+  ]
+
+  return createElement('div', { className: 'agnes-section' },
+    createElement('div', { className: 'agnes-section-title' }, '默认模型（按用途）'),
+    createElement('div', { style: { ...HINT, marginBottom: '10px' } },
+      '只有生图/生视频能选模型是不够的：分镜、写稿、解析、配音这些功能以前写死了模型名。选这里之后，所有对应功能一起走它。留空则用 DSH 的默认值。'),
+    ...rows.map(row => {
+      const list = options(row.key)
+      const effective = capability?.effectiveDefaults?.[row.key] ?? ''
+      return createElement('div', { key: row.key, className: 'agnes-mcfg-row' },
+        createElement('span', { className: 'agnes-mcfg-name', style: { minWidth: '54px' } }, row.label),
+        createElement('select', {
+          className: 'agnes-input',
+          value: draft[row.key] ?? '',
+          onChange: (e: React.ChangeEvent<HTMLSelectElement>) => {
+            const value = e.target.value
+            setDraft(prev => {
+              const next = { ...prev }
+              if (value === '') delete next[row.key]
+              else next[row.key] = value
+              return next
+            })
+          },
+        },
+          createElement('option', { value: '' }, `跟随默认（${effective}）`),
+          ...list.map(([id, label]) => createElement('option', { key: id, value: id }, label)),
+        ),
+        createElement('span', { style: { ...HINT, minWidth: '190px' } }, row.hint),
+      )
+    }),
+    createElement('div', { className: 'agnes-mcfg-row' },
+      createElement('button', { className: 'agnes-btn agnes-btn-primary', disabled: busy, onClick: () => { void save() } }, '保存默认模型'),
+    ),
+  )
+}
+
 // ─── ComfyUI（仙宫云 / 自建）──────────────────────────────────────────────
 
 function ComfySection() {
@@ -236,6 +341,24 @@ export function ModelConfigPanel(): unknown {
 
   const reload = useCallback(async () => {
     const result = await fetchConfig()
+    // 顺带取模型清单：默认模型下拉要用它（一次请求，失败也不影响主流程）
+    if (result.view !== null) {
+      try {
+        const resp = await fetch('/agnes-studio/api/models')
+        const models = await resp.json() as {
+          textModels?: Record<string, string>
+          imageModels?: Record<string, string>
+          videoModels?: Record<string, string>
+          capabilityDefaults?: ConfigView['capabilityDefaults']
+        }
+        result.view.textModels = models.textModels ?? {}
+        result.view.imageModels = models.imageModels ?? {}
+        result.view.videoModels = models.videoModels ?? {}
+        if (models.capabilityDefaults !== undefined) {
+          result.view.capabilityDefaults = models.capabilityDefaults
+        }
+      } catch { /* 拿不到模型清单就只显示"跟随默认" */ }
+    }
     setView(result.view)
     setNotReady(result.notReady)
     setError(result.error)
@@ -432,6 +555,16 @@ export function ModelConfigPanel(): unknown {
   return createElement('div', { className: 'agnes-mcfg' },
     error !== '' ? createElement('div', { style: { ...HINT, color: '#ff9a9a', marginBottom: '10px' } }, `操作失败：${error}`) : null,
     notice !== '' ? createElement('div', { style: { ...HINT, color: '#7ee0a8', marginBottom: '10px' } }, notice) : null,
+
+    // ── 默认模型（按用途）──
+    createElement(DefaultsSection, {
+      capability: view.capabilityDefaults ?? null,
+      textModels: view.textModels ?? {},
+      imageModels: view.imageModels ?? {},
+      videoModels: view.videoModels ?? {},
+      onSaved: (message: string) => setNotice(message),
+      onError: (message: string) => setError(message),
+    }),
 
     // ── 厂商 ──
     createElement('div', { className: 'agnes-section' },

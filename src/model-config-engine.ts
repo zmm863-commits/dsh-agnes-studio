@@ -53,10 +53,33 @@ export interface VendorConfig {
 }
 
 /** 持久化文件结构。 */
+/** 按用途的默认模型（界面上「默认模型」那 5 个下拉）。 */
+export interface CapabilityDefaults {
+  text?: string
+  vision?: string
+  image?: string
+  video?: string
+  tts?: string
+}
+
+/** 只保留已知用途，且值必须是字符串。 */
+function normalizeDefaults(raw: unknown): CapabilityDefaults {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const input = raw as Record<string, unknown>
+  const out: CapabilityDefaults = {}
+  for (const key of ['text', 'vision', 'image', 'video', 'tts'] as const) {
+    const value = input[key]
+    if (typeof value === 'string' && value.trim() !== '') out[key] = value.trim()
+  }
+  return out
+}
+
 export interface ModelConfigFile {
   version: 1
   vendors: Record<string, VendorConfig>
   customModels: CustomModelConfig[]
+  /** 每个用途用哪个模型；空表示走环境变量 / 内置兜底。 */
+  defaults?: CapabilityDefaults
 }
 
 /** 浏览器可见的厂商视图（密钥打码）。 */
@@ -99,7 +122,7 @@ export function configFilePath(): string {
 
 /** 读配置；文件不存在/读坏都回落成空配置，绝不让面板打不开。 */
 export function loadModelConfig(): ModelConfigFile {
-  const empty: ModelConfigFile = { version: 1, vendors: {}, customModels: [] }
+  const empty: ModelConfigFile = { version: 1, vendors: {}, customModels: [], defaults: {} }
   const path = configFilePath()
   if (!existsSync(path)) return empty
   try {
@@ -108,6 +131,7 @@ export function loadModelConfig(): ModelConfigFile {
       version: 1,
       vendors: typeof raw.vendors === 'object' && raw.vendors !== null ? raw.vendors : {},
       customModels: Array.isArray(raw.customModels) ? raw.customModels : [],
+      defaults: normalizeDefaults(raw.defaults),
     }
   } catch {
     return empty

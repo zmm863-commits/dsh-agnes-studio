@@ -11,6 +11,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataRoot } from './ffmpeg.js'
+import { modelFor } from './model-defaults.js'
 
 /** 提交动作迁移所需的上下文。 */
 export interface AnimateContext {
@@ -37,7 +38,7 @@ export interface AnimateResult {
  * 把 `DSH_ANIMATE_MODEL` 指向平台已上架的模型名即可。
  */
 export function animateModel(): string {
-  return process.env.DSH_ANIMATE_MODEL || 'agnes-video-2.5-flash'
+  return modelFor('video')
 }
 
 /**

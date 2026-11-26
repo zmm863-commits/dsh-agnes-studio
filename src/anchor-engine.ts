@@ -177,7 +177,7 @@ async function synthesize(
       signal: ac.signal,
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'mimo-v2.5-tts',
+        model: modelFor('tts'),
         messages: [
           { role: 'user', content: ttsStyle(minSegSec) },
           { role: 'assistant', content: text },
@@ -261,7 +261,7 @@ async function generateAiVisual(
   try {
     const submitted = await host.call('agnes', '/v1/videos', {
       method: 'POST',
-      body: { model: 'agnes-video-2.5-flash', prompt, mode: 'text', seconds: String(seconds), size: '720P' },
+      body: { model: modelFor('video'), prompt, mode: 'text', seconds: String(seconds), size: '720P' },
       timeoutMs: 120_000,
     })
     const id = String(submitted?.video_id || submitted?.id || '')

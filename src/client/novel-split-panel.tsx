@@ -4,6 +4,7 @@
  */
 
 import { React, useState, useEffect, useCallback, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ async function apiCall<T>(baseUrl: string, method: string, path: string, body?: 
 export function NovelSplitPanel() {
   const [activeTab, setActiveTab] = useState<'split' | 'deai'>('split')
 
-  return createElement('div', { className: 'novel-split-panel' },
+  return createElement('div', { className: 'novel-split-page' },
     // 标题
     createElement('div', { className: 'novel-split-header' },
       createElement('h3', null, '小说工具'),
@@ -135,61 +136,69 @@ function SplitPanel() {
     }
   }, [currentTask])
 
-  return createElement('div', { className: 'split-panel' },
-    error && createElement('div', { className: 'split-error' }, error),
+  return createElement(StudioSplit, {
+    title: '分批拆分',
+    desc: '按章节真切，再按字数均摊成集；每集写成一个 md 文件。',
+    params: [
+      error && createElement('div', { className: 'split-error' }, error),
 
-    // 当前任务状态
-    currentTask && createElement('div', { className: 'split-status' },
-      createElement('div', { className: 'split-status-header' },
-        createElement('span', null, `任务 ${currentTask.id}`),
-        createElement('span', { className: `split-badge split-badge-${currentTask.status}` },
-          currentTask.status === 'running' ? '拆分中' :
-          currentTask.status === 'completed' ? '已完成' :
-          currentTask.status === 'failed' ? '失败' : '已停止'),
-      ),
-      createElement('p', null, currentTask.message),
-      createElement('p', null, `已拆 ${currentTask.eps}/${currentTask.n_eps} 集`),
-    ),
-
-    // 输入区域
-    createElement('div', { className: 'split-section' },
-      createElement('h4', null, '① 输入小说内容'),
-      createElement('div', { className: 'split-form' },
-        createElement('textarea', {
-          value: sourceText,
-          onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setSourceText(e.target.value),
-          placeholder: '粘贴小说内容...',
-          rows: 8,
-        }),
-        createElement('label', { className: 'split-label' },
-          '拆分集数',
-          createElement('input', { type: 'number', value: nEps, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setNEps(Number(e.target.value)), min: 2, max: 50 }),
+      // 输入区域
+      createElement('div', { className: 'split-section' },
+        createElement('h4', null, '小说全文或文件路径'),
+        createElement('div', { className: 'split-form' },
+          createElement('textarea', {
+            value: sourceText,
+            onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setSourceText(e.target.value),
+            placeholder: '粘贴小说内容，或直接填 /path/to/novel.txt',
+            rows: 8,
+          }),
+          createElement('label', { className: 'split-label' },
+            '拆分集数',
+            createElement('input', { type: 'number', value: nEps, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setNEps(Number(e.target.value)), min: 2, max: 50 }),
+          ),
         ),
       ),
-    ),
 
-    // 操作按钮
-    createElement('div', { className: 'split-actions' },
-      createElement('button', {
-        className: 'split-btn split-btn-primary',
-        onClick: handleStart,
-        disabled: loading || !sourceText.trim(),
-      }, loading ? '拆分中...' : '开始拆分'),
-      currentTask && createElement('button', {
-        className: 'split-btn split-btn-danger',
-        onClick: handleStop,
-      }, '停止'),
-    ),
-
-    // 拆分结果
-    currentTask?.status === 'completed' && createElement('div', { className: 'split-section' },
-      createElement('h4', null, '② 拆分结果'),
-      createElement('div', { className: 'split-result' },
-        createElement('p', null, `共拆分 ${currentTask.n_eps} 集`),
-        createElement('p', null, `总字数：${currentTask.words}`),
+      // 操作按钮
+      createElement('div', { className: 'split-actions' },
+        createElement('button', {
+          className: 'split-btn split-btn-primary',
+          onClick: handleStart,
+          disabled: loading || !sourceText.trim(),
+        }, loading ? '拆分中...' : '开始拆分'),
+        currentTask && createElement('button', {
+          className: 'split-btn split-btn-danger',
+          onClick: handleStop,
+        }, '停止'),
       ),
-    ),
-  )
+    ],
+    children: [
+      // 当前任务状态
+      currentTask !== null && createElement('div', { className: 'split-status' },
+        createElement('div', { className: 'split-status-header' },
+          createElement('span', null, `任务 ${currentTask.id}`),
+          createElement('span', { className: `split-badge split-badge-${currentTask.status}` },
+            currentTask.status === 'running' ? '拆分中' :
+            currentTask.status === 'completed' ? '已完成' :
+            currentTask.status === 'failed' ? '失败' : '已停止'),
+        ),
+        createElement('p', null, currentTask.message),
+        createElement('p', null, `已拆 ${currentTask.eps}/${currentTask.n_eps} 集`),
+      ),
+
+      // 拆分结果
+      currentTask?.status === 'completed' && createElement('div', { className: 'split-section' },
+        createElement('h4', null, '拆分结果'),
+        createElement('div', { className: 'split-result' },
+          createElement('p', null, `共拆分 ${currentTask.n_eps} 集`),
+          createElement('p', null, `总字数：${currentTask.words}`),
+        ),
+      ),
+
+      currentTask === null && createElement('div', { className: 'agnes-empty' },
+        '拆好的每一集都会写成 md 文件。填好右侧参数后点「开始拆分」，进度会显示在这里。'),
+    ],
+  })
 }
 
 // ─── 去 AI 味面板 ──────────────────────────────────────────────────────────
@@ -237,61 +246,69 @@ function DeaiPanel() {
     }
   }, [inputText, op])
 
-  return createElement('div', { className: 'deai-panel' },
-    error && createElement('div', { className: 'deai-error' }, error),
+  return createElement(StudioSplit, {
+    title: '去 AI 味',
+    desc: '分块送文本模型改写，三档强度；结果整段返回。',
+    params: [
+      error && createElement('div', { className: 'deai-error' }, error),
 
-    // 当前任务状态
-    currentTask && createElement('div', { className: 'deai-status' },
-      createElement('div', { className: 'deai-status-header' },
-        createElement('span', null, `任务 ${currentTask.id}`),
-        createElement('span', { className: `deai-badge deai-badge-${currentTask.status}` },
-          currentTask.status === 'running' ? '处理中' :
-          currentTask.status === 'completed' ? '已完成' :
-          currentTask.status === 'failed' ? '失败' : '已停止'),
-      ),
-      createElement('p', null, currentTask.message),
-    ),
-
-    // 输入区域
-    createElement('div', { className: 'deai-section' },
-      createElement('h4', null, '① 输入文本'),
-      createElement('div', { className: 'deai-form' },
-        createElement('textarea', {
-          value: inputText,
-          onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setInputText(e.target.value),
-          placeholder: '粘贴需要去 AI 味的文本...',
-          rows: 8,
-        }),
-        createElement('label', { className: 'deai-label' },
-          '处理模式',
-          createElement('select', { value: op, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setOp(e.target.value) },
-            createElement('option', { value: 'light' }, '轻度（去除明显 AI 痕迹）'),
-            createElement('option', { value: 'medium' }, '中度（重写更自然）'),
-            createElement('option', { value: 'heavy' }, '重度（彻底重写）'),
+      // 输入区域
+      createElement('div', { className: 'deai-section' },
+        createElement('h4', null, '待处理文本'),
+        createElement('div', { className: 'deai-form' },
+          createElement('textarea', {
+            value: inputText,
+            onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setInputText(e.target.value),
+            placeholder: '粘贴需要去 AI 味的文本...',
+            rows: 8,
+          }),
+          createElement('label', { className: 'deai-label' },
+            '处理模式',
+            createElement('select', { value: op, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setOp(e.target.value as 'light' | 'medium' | 'heavy') },
+              createElement('option', { value: 'light' }, '轻度（去除明显 AI 痕迹）'),
+              createElement('option', { value: 'medium' }, '中度（重写更自然）'),
+              createElement('option', { value: 'heavy' }, '重度（彻底重写）'),
+            ),
           ),
         ),
       ),
-    ),
 
-    // 操作按钮
-    createElement('div', { className: 'deai-actions' },
-      createElement('button', {
-        className: 'deai-btn deai-btn-primary',
-        onClick: handleStart,
-        disabled: loading || !inputText.trim(),
-      }, loading ? '处理中...' : '开始处理'),
-    ),
-
-    // 处理结果
-    currentTask?.status === 'completed' && createElement('div', { className: 'deai-section' },
-      createElement('h4', null, '② 处理结果'),
-      createElement('div', { className: 'deai-result' },
-        createElement('textarea', {
-          value: currentTask.result || '',
-          readOnly: true,
-          rows: 8,
-        }),
+      // 操作按钮
+      createElement('div', { className: 'deai-actions' },
+        createElement('button', {
+          className: 'deai-btn deai-btn-primary',
+          onClick: handleStart,
+          disabled: loading || !inputText.trim(),
+        }, loading ? '处理中...' : '开始处理'),
       ),
-    ),
-  )
+    ],
+    children: [
+      // 当前任务状态
+      currentTask !== null && createElement('div', { className: 'deai-status' },
+        createElement('div', { className: 'deai-status-header' },
+          createElement('span', null, `任务 ${currentTask.id}`),
+          createElement('span', { className: `deai-badge deai-badge-${currentTask.status}` },
+            currentTask.status === 'running' ? '处理中' :
+            currentTask.status === 'completed' ? '已完成' :
+            currentTask.status === 'failed' ? '失败' : '已停止'),
+        ),
+        createElement('p', null, currentTask.message),
+      ),
+
+      // 处理结果
+      currentTask?.status === 'completed' && createElement('div', { className: 'deai-section' },
+        createElement('h4', null, '处理结果'),
+        createElement('div', { className: 'deai-result' },
+          createElement('textarea', {
+            value: currentTask.result || '',
+            readOnly: true,
+            rows: 8,
+          }),
+        ),
+      ),
+
+      currentTask === null && createElement('div', { className: 'agnes-empty' },
+        '改写结果会整段显示在这里，可直接全选复制。'),
+    ],
+  })
 }

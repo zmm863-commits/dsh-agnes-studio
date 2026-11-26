@@ -4,6 +4,7 @@
  */
 
 import { React, useState, useEffect, useCallback, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
 
 // ─── API 调用 ──────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ async function apiCall<T>(method: string, path: string, body?: unknown): Promise
 export function ToolboxPanel() {
   const [activeTab, setActiveTab] = useState<'vidbee' | 'tts' | 'broll' | 'lyric' | 'animate'>('vidbee')
 
-  return createElement('div', { className: 'toolbox-panel' },
+  return createElement('div', { className: 'toolbox-page' },
     // 标题
     createElement('div', { className: 'toolbox-header' },
       createElement('h3', null, '多能宝箱'),
@@ -111,10 +112,12 @@ function VidbeePanel() {
     }
   }, [url, quality])
 
-  return createElement('div', { className: 'vidbee-panel' },
-    error && createElement('div', { className: 'vidbee-error' }, error),
-
-    createElement('div', { className: 'vidbee-form' },
+  return createElement(StudioSplit, {
+    title: '视频下载',
+    desc: '直链直接抓；装了 yt-dlp 就能下站点视频。',
+    params: [
+      error && createElement('div', { className: 'vidbee-error' }, error),
+      createElement('div', { className: 'vidbee-form' },
       createElement('label', { className: 'vidbee-label' },
         '视频链接',
         createElement('input', { type: 'text', value: url, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value), placeholder: 'https://...' }),
@@ -133,13 +136,17 @@ function VidbeePanel() {
         onClick: handleDownload,
         disabled: loading || !url.trim(),
       }, loading ? '下载中...' : '开始下载'),
-    ),
-
-    log.length > 0 && createElement('div', { className: 'vidbee-log' },
-      createElement('h4', null, '下载日志'),
-      createElement('pre', null, log.join('\n')),
-    ),
-  )
+      ),
+    ],
+    children: [
+      log.length > 0
+        ? createElement('div', { className: 'vidbee-log' },
+            createElement('h4', null, '下载日志'),
+            createElement('pre', null, log.join('\n')),
+          )
+        : createElement('div', { className: 'agnes-empty' }, '下载进度会显示在这里。'),
+    ],
+  })
 }
 
 // ─── 文本转音频面板 ────────────────────────────────────────────────────────
@@ -179,10 +186,12 @@ function TtsPanel() {
     }
   }, [text, voice])
 
-  return createElement('div', { className: 'tts-panel' },
-    error && createElement('div', { className: 'tts-error' }, error),
-
-    createElement('div', { className: 'tts-form' },
+  return createElement(StudioSplit, {
+    title: '文本转音频',
+    desc: '真实 MiMo TTS，返回的是一段 WAV。',
+    params: [
+      error && createElement('div', { className: 'tts-error' }, error),
+      createElement('div', { className: 'tts-form' },
       createElement('label', { className: 'tts-label' },
         '文本内容',
         createElement('textarea', {
@@ -205,13 +214,17 @@ function TtsPanel() {
         onClick: handleConvert,
         disabled: loading || !text.trim(),
       }, loading ? '转换中...' : '开始转换'),
-    ),
-
-    audioUrl && createElement('div', { className: 'tts-result' },
-      createElement('h4', null, '转换结果'),
-      createElement('audio', { controls: true, src: audioUrl, className: 'tts-audio' }, '您的浏览器不支持音频播放'),
-    ),
-  )
+      ),
+    ],
+    children: [
+      audioUrl !== ''
+        ? createElement('div', { className: 'tts-result' },
+            createElement('h4', null, '转换结果'),
+            createElement('audio', { controls: true, src: audioUrl, className: 'tts-audio' }, '您的浏览器不支持音频播放'),
+          )
+        : createElement('div', { className: 'agnes-empty' }, '合成好的音频会出现在这里，可直接试听。'),
+    ],
+  })
 }
 
 // ─── 素材库面板 ────────────────────────────────────────────────────────────
@@ -273,11 +286,13 @@ function BrollPanel() {
 
   const shown = matches ?? assets.map(asset => ({ asset, score: 0 }))
 
-  return createElement('div', { className: 'broll-panel' },
-    error && createElement('div', { className: 'tts-error' }, error),
-    note !== '' && createElement('div', { className: 'toolbox-desc' }, note),
-
-    createElement('label', { className: 'tts-label' }, '素材目录（每行一个，例如 /root/素材/空镜）',
+  return createElement(StudioSplit, {
+    title: '素材库',
+    desc: '本地目录优先，离线可用；配了 PEXELS_API_KEY 才能联网找素材。',
+    params: [
+      error && createElement('div', { className: 'tts-error' }, error),
+      note !== '' && createElement('div', { className: 'toolbox-desc' }, note),
+      createElement('label', { className: 'tts-label' }, '素材目录（每行一个，例如 /root/素材/空镜）',
       createElement('textarea', {
         value: roots,
         onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setRoots(e.target.value),
@@ -300,9 +315,10 @@ function BrollPanel() {
     createElement('div', { className: 'tts-actions' },
       createElement('button', { className: 'agnes-btn agnes-btn-secondary', onClick: () => { void handleMatch() } }, '匹配'),
       createElement('button', { className: 'agnes-btn agnes-btn-secondary', onClick: () => { setMatches(null); setQuery('') } }, '清除'),
-    ),
-
-    createElement('div', { className: 'broll-list' },
+      ),
+    ],
+    children: [
+      createElement('div', { className: 'broll-list' },
       shown.length === 0
         ? createElement('div', { className: 'toolbox-desc' }, assets.length === 0 ? '库是空的，先扫描一个目录。' : '没有命中的素材。')
         : shown.map(item => createElement('div', { key: item.asset.file, className: 'broll-item' },
@@ -313,8 +329,9 @@ function BrollPanel() {
               item.score > 0 ? ` · 命中 ${item.score}` : '',
             ),
           )),
-    ),
-  )
+      ),
+    ],
+  })
 }
 
 // ─── 歌词对齐面板 ──────────────────────────────────────────────────────────
@@ -346,10 +363,13 @@ function LyricPanel() {
     } finally { setBusy(false) }
   }, [lyrics, audio])
 
-  return createElement('div', { className: 'lyric-panel' },
-    error && createElement('div', { className: 'tts-error' }, error),
-    note !== '' && createElement('div', { className: 'toolbox-desc' }, note),
-    createElement('label', { className: 'tts-label' }, '歌词（每行一句）',
+  return createElement(StudioSplit, {
+    title: '歌词对齐',
+    desc: '按字数比例分配，再用停顿吸附边界；每行都标了是吸附还是比例。',
+    params: [
+      error && createElement('div', { className: 'tts-error' }, error),
+      note !== '' && createElement('div', { className: 'toolbox-desc' }, note),
+      createElement('label', { className: 'tts-label' }, '歌词（每行一句）',
       createElement('textarea', { value: lyrics, rows: 6, onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setLyrics(e.target.value) })),
     createElement('label', { className: 'tts-label' }, '音频路径',
       createElement('input', { type: 'text', value: audio, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setAudio(e.target.value), placeholder: '/path/to/song.mp3' })),
@@ -359,13 +379,18 @@ function LyricPanel() {
         className: 'agnes-btn agnes-btn-secondary',
         onClick: () => { void navigator.clipboard?.writeText(srt) },
       }, '复制 SRT')),
-    cues.length > 0 && createElement('div', { className: 'lyric-cues' },
-      ...cues.map(cue => createElement('div', { key: cue.index, className: 'lyric-cue' },
-        createElement('span', { className: 'lyric-time' }, `${cue.start.toFixed(2)} → ${cue.end.toFixed(2)}`),
-        createElement('span', { className: 'lyric-text' }, cue.text),
-        createElement('span', { className: 'lyric-flag' }, cue.snapped ? '吸附' : '比例'),
-      ))),
-  )
+    ],
+    children: [
+      cues.length > 0
+        ? createElement('div', { className: 'lyric-cues' },
+            ...cues.map(cue => createElement('div', { key: cue.index, className: 'lyric-cue' },
+              createElement('span', { className: 'lyric-time' }, `${cue.start.toFixed(2)} → ${cue.end.toFixed(2)}`),
+              createElement('span', { className: 'lyric-text' }, cue.text),
+              createElement('span', { className: 'lyric-flag' }, cue.snapped ? '吸附' : '比例'),
+            )))
+        : createElement('div', { className: 'agnes-empty' }, '对齐后的时间轴会逐行显示在这里（含 SRT）。'),
+    ],
+  })
 }
 
 // ─── 动作迁移面板 ──────────────────────────────────────────────────────────
@@ -398,10 +423,13 @@ function AnimatePanel() {
     } finally { setBusy(false) }
   }, [image, reference, prompt])
 
-  return createElement('div', { className: 'animate-panel' },
-    error && createElement('div', { className: 'tts-error' }, error),
-    result !== '' && createElement('div', { className: 'toolbox-desc' }, result),
-    createElement('label', { className: 'tts-label' }, '角色图地址',
+  return createElement(StudioSplit, {
+    title: '动作迁移',
+    desc: '把参考视频里的动作搬到角色图上；模型可用 DSH_ANIMATE_MODEL 指定。',
+    params: [
+      error && createElement('div', { className: 'tts-error' }, error),
+      result !== '' && createElement('div', { className: 'toolbox-desc' }, result),
+      createElement('label', { className: 'tts-label' }, '角色图地址',
       createElement('input', { type: 'text', value: image, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setImage(e.target.value), placeholder: 'https://… 或 data:image/…' })),
     createElement('label', { className: 'tts-label' }, '参考动作视频（可选）',
       createElement('input', { type: 'text', value: reference, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setReference(e.target.value), placeholder: 'https://…mp4' })),
@@ -409,6 +437,10 @@ function AnimatePanel() {
       createElement('input', { type: 'text', value: prompt, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value), placeholder: '人物挥手、转身' })),
     createElement('div', { className: 'tts-actions' },
       createElement('button', { className: 'agnes-btn agnes-btn-primary', disabled: busy, onClick: () => { void handleRun() } }, busy ? '生成中（可能几分钟）…' : '开始迁移')),
-    createElement('div', { className: 'toolbox-desc' }, '模型默认 agnes-video-2.5-flash 的 reference 模式；平台若上架了专门的动作迁移模型，用 DSH_ANIMATE_MODEL 指定。'),
-  )
+    ],
+    children: [
+      createElement('div', { className: 'agnes-empty' },
+        '说明：生成要几分钟，期间可以切到别的页签。平台若没有上架动作迁移模型，这里会直接报出平台原文，不会假装成功。'),
+    ],
+  })
 }

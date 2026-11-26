@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataRoot, ffmpeg } from './ffmpeg.js'
+import { modelFor } from './model-defaults.js'
 
 // ─── Host 能力注入 ──────────────────────────────────────────────────────────
 
@@ -33,10 +34,10 @@ export interface BgVideoHost {
 // 现在统一走真实模型：文本走 chat/completions，出图走 images/generations。
 // 任何一步失败都抛出可读错误，由调用方回 500 —— 宁可报错，不可假成功。
 
-/** 规划/写作用文本模型；可用环境变量覆盖。 */
-const BG_TEXT_MODEL = process.env.DSH_AGNES_TEXT_MODEL || 'agnes-2.5-flash'
-/** 出图用图片模型。 */
-const BG_IMAGE_MODEL = process.env.DSH_AGNES_IMAGE_MODEL || 'agnes-image-2.5-flash'
+/** 文本模型：走「设置 → 默认模型 → 文本」，不再写死。 */
+const BG_TEXT_MODEL = modelFor('text')
+/** 图片模型：走「设置 → 默认模型 → 图片」。 */
+const BG_IMAGE_MODEL = modelFor('image')
 
 /** 调文本模型，返回正文。 */
 async function callText(
@@ -288,7 +289,7 @@ async function generateShotVideos(host: BgVideoHost, task: BgVideoTask): Promise
   if (shots.length === 0) throw new Error('没有分镜，先生成分镜再出片')
   if (task.plan_only) throw new Error('任务处于"只出计划"模式，不会生成视频')
 
-  const model = process.env.DSH_AGNES_VIDEO_MODEL || 'agnes-video-2.5-flash'
+  const model = modelFor('video')
   for (const shot of shots) {
     const existing = (shot as { video?: string }).video
     if (existing !== undefined && existing !== '') continue
@@ -657,7 +658,11 @@ export async function handleBgVideoRoute(
     if (!task) {
       return { status: 404, data: { error: '任务不存在' } }
     }
-    task.shots = shots
+    // 面板只回传 index/desc；角色等字段沿用旧值，避免整条覆盖丢失
+    task.shots = (shots ?? []).map(shot => {
+      const previous = (task.shots ?? []).find(old => old.index === shot.index)
+      return { ...previous, index: shot.index, desc: shot.desc, chars: previous?.chars ?? [] }
+    })
     task.updated_at = Date.now()
     saveToDisk(task)
     return { status: 200, data: { success: true } }

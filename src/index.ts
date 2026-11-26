@@ -27,6 +27,7 @@ import { alignLyrics, cuesToLrc, cuesToSrt } from './lyric-align.js'
 import { acquireKey, describePool, poolSize, reportKeyResult } from './key-pool.js'
 import { comfyCheckpoints, comfyGenerate, comfyStatus, loadComfyConfig, saveComfyConfig } from './comfyui-engine.js'
 import { runAnimate } from './animate-engine.js'
+import { CAPABILITY_FALLBACK, CAPABILITY_LABEL, modelFor } from './model-defaults.js'
 import { handleWechatRoute, handleLocalfilesRoute, rehydrateWechat, rehydrateLocalfiles, type WechatHost } from './wechat-engine.js'
 import { COVER_STYLES, analyzeNovelFile, buildCoverPrompt } from './cover-engine.js'
 import { handlePromptExpertRoute, generatePromptExpert, EXPERT_TYPES } from './prompt-expert-engine.js'
@@ -610,6 +611,12 @@ export function apply(ctx: Context): void {
             return out
           }
           jsonResponse(res, 200, {
+            capabilityDefaults: {
+              defaults: loadModelConfig().defaults ?? {},
+              effective: { text: modelFor('text'), vision: modelFor('vision'), image: modelFor('image'), video: modelFor('video'), tts: modelFor('tts') },
+              fallback: CAPABILITY_FALLBACK,
+              labels: CAPABILITY_LABEL,
+            },
             textModels: merge(TEXT_MODEL_OPTIONS, 'text'),
             imageModels: merge(IMAGE_MODEL_OPTIONS, 'image'),
             videoModels: merge(VIDEO_MODEL_OPTIONS, 'video'),
@@ -660,6 +667,14 @@ export function apply(ctx: Context): void {
             jsonResponse(res, 200, {
               configPath: configFilePath(),
               vendors,
+              defaults: config.defaults ?? {},
+              effectiveDefaults: {
+                text: modelFor('text'),
+                vision: modelFor('vision'),
+                image: modelFor('image'),
+                video: modelFor('video'),
+                tts: modelFor('tts'),
+              },
               customModels: config.customModels.map(m => ({
                 id: m.id, name: m.name, kind: m.kind, baseUrl: m.baseUrl,
                 vendor: m.vendor ?? 'custom',
@@ -1272,6 +1287,36 @@ export function apply(ctx: Context): void {
             }
 
             jsonResponse(res, 404, { error: 'not found' })
+          } catch (e) {
+            jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
+          }
+          return
+        }
+
+        // ── 按用途设置默认模型 ─────────────────────────────────────────
+        if (path === '/agnes-studio/api/model-config/defaults' && method === 'POST') {
+          try {
+            const body = JSON.parse(await readBody(req)) as Record<string, unknown>
+            const config = loadModelConfig()
+            const next = { ...(config.defaults ?? {}) }
+            for (const key of ['text', 'vision', 'image', 'video', 'tts'] as const) {
+              if (body[key] === undefined) continue
+              const value = String(body[key]).trim()
+              if (value === '') delete next[key]
+              else next[key] = value
+            }
+            saveModelConfig({ ...config, defaults: next })
+            jsonResponse(res, 200, {
+              ok: true,
+              defaults: next,
+              effectiveDefaults: {
+                text: modelFor('text'),
+                vision: modelFor('vision'),
+                image: modelFor('image'),
+                video: modelFor('video'),
+                tts: modelFor('tts'),
+              },
+            })
           } catch (e) {
             jsonResponse(res, 500, { error: e instanceof Error ? e.message : String(e) })
           }

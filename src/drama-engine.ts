@@ -221,7 +221,7 @@ async function downloadTo(url: string, dest: string, timeoutMs = 300_000): Promi
  * contracts, so we fail loudly rather than silently producing nothing.
  */
 async function runShotVideo(task: DramaTask, shotIndex: number, host: DramaHost): Promise<void> {
-  const model = task.video_model || 'agnes-video-2.5-flash'
+  const model = modelFor('video', task.video_model)
   const vr = (task.video_results || []).find(r => r.shot_index === shotIndex)
   if (!vr) return
   const shot = (task.shots || task.storyboard?.shots || []).find(s => s.shot_index === shotIndex)
@@ -401,7 +401,7 @@ export async function handleDramaRoute(method: string, urlPath: string, body: an
 
   if (method === 'POST' && dp === 'start') {
     const id = randomUUID().slice(0, 12)
-    const task: DramaTask = { drama_id: id, prompt: body.prompt || '', status: 'started', step: '', message: '正在启动...', text_model: body.text_model || 'agnes-3.0-flash', image_model: body.image_model || 'agnes-image-2.5-flash', video_model: body.video_model || 'agnes-video-2.5-flash', shot_duration: body.shot_duration || 5, created_at: Date.now(), updated_at: Date.now() }
+    const task: DramaTask = { drama_id: id, prompt: body.prompt || '', status: 'started', step: '', message: '正在启动...', text_model: modelFor('text', body.text_model), image_model: modelFor('image', body.image_model), video_model: modelFor('video', body.video_model), shot_duration: body.shot_duration || 5, created_at: Date.now(), updated_at: Date.now() }
     dramaTasks.set(id, task); saveToDisk(task)
     resolveApiKey(getVendor(task.text_model)).then(k => { runningDramas.add(id); runPipeline(task, k) }).catch(e => updateTask(task, { status: 'failed', message: `API Key 获取失败: ${e}` }))
     return { status: 200, data: { drama_id: id, status: 'started' } }
@@ -416,8 +416,8 @@ export async function handleDramaRoute(method: string, urlPath: string, body: an
       drama_id: id, prompt: body.prompt || scriptContent.slice(0, 100), status: 'started', step: '',
       message: '正在从导入的剧本生成分镜...',
       script: scriptContent, // 直接设置剧本，流水线会跳过故事+剧本步骤
-      text_model: body.text_model || 'agnes-3.0-flash', image_model: body.image_model || 'agnes-image-2.5-flash',
-      video_model: body.video_model || 'agnes-video-2.5-flash', shot_duration: body.shot_duration || 5,
+      text_model: modelFor('text', body.text_model), image_model: modelFor('image', body.image_model),
+      video_model: modelFor('video', body.video_model), shot_duration: body.shot_duration || 5,
       created_at: Date.now(), updated_at: Date.now(),
     }
     dramaTasks.set(id, task); saveToDisk(task)

@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataRoot } from './ffmpeg.js'
+import { modelFor } from './model-defaults.js'
 import { runMvPipeline, type MvShot } from './mv-pipeline.js'
 
 // ─── Host 能力注入 ──────────────────────────────────────────────────────────
@@ -144,9 +145,9 @@ export async function handleMvRoute(
       audio_file,
       avatar_file,
       lyrics,
-      text_model: text_model || 'agnes-3.0-flash',
-      image_model: image_model || 'agnes-image-2.5-flash',
-      video_model: video_model || 'agnes-video-2.5-flash',
+      text_model: modelFor('text', text_model),
+      image_model: modelFor('image', image_model),
+      video_model: modelFor('video', video_model),
       created_at: Date.now(),
       updated_at: Date.now(),
     }

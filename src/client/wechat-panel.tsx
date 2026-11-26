@@ -4,6 +4,7 @@
  */
 
 import { React, useState, useCallback, useEffect, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ async function apiCall<T>(baseUrl: string, method: string, path: string, body?: 
 export function WechatPanel() {
   const [activeTab, setActiveTab] = useState<'wechat' | 'localfiles'>('wechat')
 
-  return createElement('div', { className: 'wechat-panel' },
+  return createElement('div', { className: 'wechat-page' },
     // 标题
     createElement('div', { className: 'wechat-header' },
       createElement('h3', null, '微信公众号 + 本地文件'),
@@ -162,7 +163,10 @@ function WechatArticlePanel() {
     }
   }, [loadArticles])
 
-  return createElement('div', { className: 'wechat-article-panel' },
+  return createElement(StudioSplit, {
+    title: '公众号文章',
+    desc: '留空正文则由 AI 按主题写；填了正文就按原样存稿。',
+    params: [
     error && createElement('div', { className: 'wechat-error' }, error),
 
     // 公众号凭据配置 —— 此前整块缺失，没有任何输入 AppID 的地方
@@ -227,14 +231,16 @@ function WechatArticlePanel() {
         createElement('button', {
           className: 'wechat-btn wechat-btn-primary',
           onClick: handleGenerate,
-          disabled: loading || !title.trim() || !content.trim(),
+          disabled: loading || !title.trim(),
         }, loading ? '生成中...' : '生成文章'),
       ),
     ),
 
+    ],
+    children: [
     // 文章列表
     createElement('div', { className: 'wechat-section' },
-      createElement('h4', null, '② 文章列表'),
+      createElement('h4', null, '文章列表'),
       articles.length === 0
         ? createElement('p', { className: 'wechat-empty' }, '暂无文章')
         : createElement('div', { className: 'wechat-article-list' },
@@ -256,7 +262,8 @@ function WechatArticlePanel() {
             ),
           ),
     ),
-  )
+    ],
+  })
 }
 
 // ─── 本地文件面板 ──────────────────────────────────────────────────────────

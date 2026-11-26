@@ -44,6 +44,8 @@ const PATHS: Record<string, string> = {
   // 转提示词：循环箭头
   vpt: '<path d="M3.2 6.4A4.8 4.8 0 018 2.6c1.6 0 3 .8 3.9 2"/><path d="M12.8 9.6A4.8 4.8 0 018 13.4c-1.6 0-3-.8-3.9-2"/><path d="M11.9 2.4v2.4H9.5"/><path d="M4.1 13.6v-2.4h2.4"/>',
   // 设置：滑杆
+  'panel-right-close': '<rect x="2.2" y="2.8" width="11.6" height="10.4" rx="2"/><path d="M9.4 2.8v10.4"/><path d="M6.9 6.2L5.2 8l1.7 1.8"/>',
+  'panel-right-open': '<rect x="2.2" y="2.8" width="11.6" height="10.4" rx="2"/><path d="M9.4 2.8v10.4"/><path d="M5.2 6.2L6.9 8l-1.7 1.8"/>',
   settings: '<path d="M2.6 5.2h10.8M2.6 10.8h10.8"/><circle cx="6" cy="5.2" r="1.6"/><circle cx="10" cy="10.8" r="1.6"/>',
 }
 
