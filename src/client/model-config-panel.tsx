@@ -12,6 +12,7 @@
  */
 import { createElement, useCallback, useEffect, useState } from './react-shim.ts'
 import { iconSvg } from './icons.ts'
+import { clearModelCatalog, loadModelCatalog, type ModelCatalog, type ModelOption } from './models-catalog.ts'
 
 /** 厂商视图（与宿主 VendorView 对齐）。 */
 interface VendorView {
@@ -137,13 +138,15 @@ interface CapabilityView {
  */
 function DefaultsSection(props: {
   capability: CapabilityView | null
-  textModels: Record<string, string>
-  imageModels: Record<string, string>
-  videoModels: Record<string, string>
+  catalog: ModelCatalog | null
+  catalogError: string
+  onRefresh: () => void
+  refreshing: boolean
+  fallback: Record<string, string>
   onSaved: (message: string) => void
   onError: (message: string) => void
 }) {
-  const { capability, textModels, imageModels, videoModels } = props
+  const { capability, catalog, fallback } = props
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
 
@@ -151,13 +154,16 @@ function DefaultsSection(props: {
     setDraft(capability?.defaults ?? {})
   }, [capability])
 
-  const options = (kind: 'text' | 'vision' | 'image' | 'video' | 'tts'): Array<[string, string]> => {
-    const base = kind === 'image' ? imageModels : kind === 'video' ? videoModels : textModels
-    const entries = Object.entries(base)
-    const current = capability?.effectiveDefaults?.[kind] ?? ''
-    if (current !== '' && !entries.some(([id]) => id === current)) entries.unshift([current, current])
-    return entries
+  /** 当前用途可选的模型（来自合并后的目录）。 */
+  const options = (kind: 'text' | 'vision' | 'image' | 'video' | 'tts'): ModelOption[] => {
+    if (catalog === null) return []
+    if (kind === 'image') return catalog.image
+    if (kind === 'video') return catalog.video
+    return catalog.text
   }
+
+  /** 生效值：宿主给的 > 本地兜底。 */
+  const effectiveOf = (kind: string): string => capability?.effectiveDefaults?.[kind] ?? fallback[kind] ?? ''
 
   const save = useCallback(async () => {
     setBusy(true)
@@ -185,10 +191,22 @@ function DefaultsSection(props: {
   return createElement('div', { className: 'agnes-section' },
     createElement('div', { className: 'agnes-section-title' }, '默认模型（按用途）'),
     createElement('div', { style: { ...HINT, marginBottom: '10px' } },
-      '只有生图/生视频能选模型是不够的：分镜、写稿、解析、配音这些功能以前写死了模型名。选这里之后，所有对应功能一起走它。留空则用 DSH 的默认值。'),
+      catalog === null
+        ? (props.catalogError === '' ? '正在读取模型清单…' : `读取模型清单失败：${props.catalogError}`)
+        : `可选模型：内置 ${catalog.counts.builtin} 个、自定义 ${catalog.counts.custom} 个、厂商在线返回 ${catalog.counts.live} 个。` +
+          (catalog.failures.length > 0
+            ? `（${catalog.failures.map(f => f.vendor).join('、')} 没能返回列表，已用内置清单兜底）`
+            : '')),
+    createElement('div', { className: 'agnes-mcfg-row' },
+      createElement('button', {
+        className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
+        disabled: props.refreshing,
+        onClick: props.onRefresh,
+      }, props.refreshing ? '刷新中…' : '刷新模型列表'),
+    ),
     ...rows.map(row => {
       const list = options(row.key)
-      const effective = capability?.effectiveDefaults?.[row.key] ?? ''
+      const effective = effectiveOf(row.key)
       return createElement('div', { key: row.key, className: 'agnes-mcfg-row' },
         createElement('span', { className: 'agnes-mcfg-name', style: { minWidth: '54px' } }, row.label),
         createElement('select', {
@@ -204,8 +222,10 @@ function DefaultsSection(props: {
             })
           },
         },
-          createElement('option', { value: '' }, `跟随默认（${effective}）`),
-          ...list.map(([id, label]) => createElement('option', { key: id, value: id }, label)),
+          createElement('option', { value: '' }, `跟随默认（${effective === '' ? '未返回' : effective}）`),
+          ...list.map(option => createElement('option', { key: option.id, value: option.id },
+            option.source === 'live' ? `${option.label}` : option.source === 'custom' ? option.label : `${option.label}`,
+          )),
         ),
         createElement('span', { style: { ...HINT, minWidth: '190px' } }, row.hint),
       )
@@ -326,6 +346,9 @@ function KeyPoolSection() {
 
 export function ModelConfigPanel(): unknown {
   const [view, setView] = useState<ConfigView | null>(null)
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
+  const [catalogError, setCatalogError] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
   const [notReady, setNotReady] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -338,6 +361,22 @@ export function ModelConfigPanel(): unknown {
 
   // 自定义模型表单
   const [newModel, setNewModel] = useState({ id: '', name: '', kind: 'text' as 'text' | 'image' | 'video', baseUrl: '', apiKey: '' })
+
+  const refreshCatalog = useCallback(async (force = false) => {
+    setRefreshing(true)
+    try {
+      if (force) clearModelCatalog()
+      setCatalog(await loadModelCatalog(force))
+      setCatalogError('')
+    } catch (e) {
+      // 目录拉取失败要把原因显示出来，否则界面只会永远停在"读取中"
+      setCatalogError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRefreshing(false)
+    }
+  }, [])
+
+  useEffect(() => { void refreshCatalog() }, [refreshCatalog])
 
   const reload = useCallback(async () => {
     const result = await fetchConfig()
@@ -559,9 +598,17 @@ export function ModelConfigPanel(): unknown {
     // ── 默认模型（按用途）──
     createElement(DefaultsSection, {
       capability: view.capabilityDefaults ?? null,
-      textModels: view.textModels ?? {},
-      imageModels: view.imageModels ?? {},
-      videoModels: view.videoModels ?? {},
+      catalog,
+      catalogError,
+      refreshing,
+      fallback: {
+        text: 'agnes-2.5-flash',
+        vision: 'agnes-2.5-flash',
+        image: 'agnes-image-2.5-flash',
+        video: 'agnes-video-2.5-flash',
+        tts: 'mimo-v2.5-tts',
+      },
+      onRefresh: () => { void refreshCatalog(true) },
       onSaved: (message: string) => setNotice(message),
       onError: (message: string) => setError(message),
     }),
