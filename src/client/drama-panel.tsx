@@ -73,7 +73,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
 
   // ── Load task list on mount ────────────────────────────────────────────
   useEffect(() => {
-    setTaskList(listDramaTasks())
+    void listDramaTasks().then(setTaskList)
     return () => {
       if (stopPollRef.current) stopPollRef.current()
     }
@@ -82,7 +82,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
   // ── Keep task list synced when currentTask changes ─────────────────────
   useEffect(() => {
     if (currentTask) {
-      setTaskList(listDramaTasks())
+      void listDramaTasks().then(setTaskList)
     }
   }, [currentTask])
 
@@ -117,14 +117,14 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
       setCurrentTask(initialTask)
       setSelectedTaskId(drama_id)
       saveDramaTask(initialTask)
-      setTaskList(listDramaTasks())
+      void listDramaTasks().then(setTaskList)
 
       // Start polling
       if (stopPollRef.current) stopPollRef.current()
       const stopPolling = pollDramaStatus(drama_id, (task) => {
         setCurrentTask(task)
         saveDramaTask(task)
-        setTaskList(listDramaTasks())
+        void listDramaTasks().then(setTaskList)
         if (TERMINAL.has(task.status)) {
           stopPolling()
         }
@@ -156,7 +156,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           const stopPolling = pollDramaStatus(dramaId, (task) => {
             setCurrentTask(task)
             saveDramaTask(task)
-            setTaskList(listDramaTasks())
+            void listDramaTasks().then(setTaskList)
             if (TERMINAL.has(task.status)) {
               stopPolling()
             }
@@ -169,12 +169,12 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
           .then((task) => {
             setCurrentTask(task)
             saveDramaTask(task)
-            setTaskList(listDramaTasks())
+            void listDramaTasks().then(setTaskList)
             if (!TERMINAL.has(task.status)) {
               const stopPolling = pollDramaStatus(dramaId, (t) => {
                 setCurrentTask(t)
                 saveDramaTask(t)
-                setTaskList(listDramaTasks())
+                void listDramaTasks().then(setTaskList)
                 if (TERMINAL.has(t.status)) stopPolling()
               })
               stopPollRef.current = stopPolling
@@ -199,7 +199,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
       const updated = { ...currentTask, status: 'stopped' as const }
       setCurrentTask(updated)
       saveDramaTask(updated)
-      setTaskList(listDramaTasks())
+      void listDramaTasks().then(setTaskList)
     } catch (e) {
       setError(e instanceof Error ? e.message : '停止失败')
     }
@@ -212,7 +212,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
       const stopPolling = pollDramaStatus(currentTask.drama_id, (task) => {
         setCurrentTask(task)
         saveDramaTask(task)
-        setTaskList(listDramaTasks())
+        void listDramaTasks().then(setTaskList)
         if (TERMINAL.has(task.status)) stopPolling()
       })
       stopPollRef.current = stopPolling
@@ -224,7 +224,7 @@ export function DramaPanel({ imageModels, videoModels }: DramaPanelProps) {
   const handleDeleteTask = useCallback(
     (dramaId: string) => {
       deleteDramaTask(dramaId)
-      setTaskList(listDramaTasks())
+      void listDramaTasks().then(setTaskList)
       if (selectedTaskId === dramaId) {
         if (stopPollRef.current) {
           stopPollRef.current()

@@ -253,12 +253,33 @@ export function saveDramaTask(task: DramaTask): void {
 }
 
 /** 加载所有短剧任务 */
-export function listDramaTasks(): DramaTask[] {
+/**
+ * 任务列表：**宿主优先**，本地 localStorage 只做离线兜底。
+ *
+ * 之前只读 localStorage —— 换浏览器、清缓存、或者任务是在别的机器上跑出来的，
+ * 列表就永远是空的，明明宿主那边有任务。现在先问宿主再合并。
+ */
+export async function listDramaTasks(): Promise<DramaTask[]> {
+  let local: DramaTask[] = [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    local = raw ? JSON.parse(raw) : [];
   } catch {
-    return [];
+    local = [];
+  }
+  try {
+    const resp = await fetch(`${API_BASE}/drama/list`);
+    if (!resp.ok) return local;
+    const data = await resp.json() as { tasks?: DramaTask[] };
+    const remote = data.tasks ?? [];
+    const byId = new Map<string, DramaTask>();
+    for (const task of remote) byId.set(task.drama_id, task);
+    for (const task of local) if (!byId.has(task.drama_id)) byId.set(task.drama_id, task);
+    const merged = [...byId.values()].sort((a, b) => b.created_at - a.created_at);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged.slice(0, 30))); } catch { /* 配额满了不影响返回 */ }
+    return merged;
+  } catch {
+    return local;
   }
 }
 
