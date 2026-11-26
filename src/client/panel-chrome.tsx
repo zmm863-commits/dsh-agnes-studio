@@ -76,7 +76,7 @@ export const MODULES: NavModule[] = [
 export interface TitlebarProps {
   /** 当前页签 id，用于显示模块名。 */
   tab: string
-  theme: 'light' | 'dark'
+  /** 固定为 dark（保留字段是为了不改动调用方签名）。 */
   onToggleTheme: () => void
   /** 当前面板尺寸档位。 */
   panelSize: PanelSize
@@ -91,7 +91,7 @@ export interface TitlebarProps {
  * @param props - 数据与回调。
  */
 export function PanelTitlebar(props: TitlebarProps): unknown {
-  const { tab, theme, onToggleTheme, panelSize, onCycleSize, onClose, onDragStart } = props
+  const { tab, panelSize, onCycleSize, onClose, onDragStart } = props
   const moduleName = MODULES.find(m => m.id === tab)?.name ?? (tab === 'settings' ? '设置' : '')
 
   return createElement('div', {
@@ -110,11 +110,8 @@ export function PanelTitlebar(props: TitlebarProps): unknown {
       onClick: onCycleSize,
       title: `面板尺寸：${PANEL_SIZE_LABEL[panelSize]}（点击切换紧凑 / 标准 / 全屏）`,
     }, PANEL_SIZE_LABEL[panelSize]),
-    createElement('button', {
-      className: 'agnes-theme-toggle',
-      onClick: onToggleTheme,
-      title: theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题',
-    }, theme === 'dark' ? '亮色' : '暗色'),
+    // 主题切换按钮已移除：本插件只有深色一套皮肤（浅色主题的样式与深色玻璃
+    // 面板冲突太多，维护两套成本高于收益）。
     createElement('span', { className: 'agnes-badge agnes-badge-free' }, '生图/视频免费'),
     createElement('button', {
       className: 'agnes-titlebar-btn',

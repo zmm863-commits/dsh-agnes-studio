@@ -10,11 +10,11 @@
  */
 export const tabFixStyles = `
 /* ── 选中页签：深色主题下必须是浅色叠加，不能是纯白 ── */
-html:not([data-dsh-theme="light"]) .toolbox-tab.active,
-html:not([data-dsh-theme="light"]) .novel-split-tab.active,
-html:not([data-dsh-theme="light"]) .videoparse-tab.active,
-html:not([data-dsh-theme="light"]) .wechat-tab.active,
-html:not([data-dsh-theme="light"]) .agnes-tab.active {
+[data-dsh-agnes-studio] .toolbox-tab.active,
+[data-dsh-agnes-studio] .novel-split-tab.active,
+[data-dsh-agnes-studio] .videoparse-tab.active,
+[data-dsh-agnes-studio] .wechat-tab.active,
+[data-dsh-agnes-studio] .agnes-tab.active {
   background: rgba(255, 255, 255, 0.14) !important;
   color: #f2f4fb !important;
   box-shadow:
@@ -24,19 +24,19 @@ html:not([data-dsh-theme="light"]) .agnes-tab.active {
 }
 
 /* 未选中的页签在深色下也要够亮，否则读不清 */
-html:not([data-dsh-theme="light"]) .toolbox-tab,
-html:not([data-dsh-theme="light"]) .novel-split-tab,
-html:not([data-dsh-theme="light"]) .videoparse-tab,
-html:not([data-dsh-theme="light"]) .wechat-tab,
-html:not([data-dsh-theme="light"]) .agnes-tab {
+[data-dsh-agnes-studio] .toolbox-tab,
+[data-dsh-agnes-studio] .novel-split-tab,
+[data-dsh-agnes-studio] .videoparse-tab,
+[data-dsh-agnes-studio] .wechat-tab,
+[data-dsh-agnes-studio] .agnes-tab {
   color: rgba(226, 231, 245, 0.72);
 }
 
-html:not([data-dsh-theme="light"]) .toolbox-tab:hover,
-html:not([data-dsh-theme="light"]) .novel-split-tab:hover,
-html:not([data-dsh-theme="light"]) .videoparse-tab:hover,
-html:not([data-dsh-theme="light"]) .wechat-tab:hover,
-html:not([data-dsh-theme="light"]) .agnes-tab:hover {
+[data-dsh-agnes-studio] .toolbox-tab:hover,
+[data-dsh-agnes-studio] .novel-split-tab:hover,
+[data-dsh-agnes-studio] .videoparse-tab:hover,
+[data-dsh-agnes-studio] .wechat-tab:hover,
+[data-dsh-agnes-studio] .agnes-tab:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #f2f4fb;
 }

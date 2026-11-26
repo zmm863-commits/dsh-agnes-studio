@@ -63,33 +63,6 @@ interface PanelProps {
 
 
 
-/** Theme choice: 'auto' follows the DSH shell, or an explicit override. */
-type ThemeChoice = 'auto' | 'light' | 'dark'
-const THEME_KEY = 'agnes-theme'
-
-/** Read the shell's own background luminance to decide light vs dark. */
-function detectShellTheme(): 'light' | 'dark' {
-  try {
-    const cs = getComputedStyle(document.body)
-    const raw = cs.getPropertyValue('--dsw-alias-bg-layer-1').trim() || cs.backgroundColor
-    const m = /rgba?\(([^)]+)\)/.exec(raw)
-    if (!m) return 'dark'
-    const [r, g, b] = m[1].split(',').map(Number)
-    const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
-    return lum > 0.5 ? 'light' : 'dark'
-  } catch { return 'dark' }
-}
-
-function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
-  if (choice === 'light' || choice === 'dark') return choice
-  try {
-    const saved = localStorage?.getItem(THEME_KEY)
-    if (saved === 'light' || saved === 'dark') return saved
-  } catch { /* ignore */ }
-  // Default to the spatial dark skin (J); light stays available from the header.
-  return 'dark'
-}
-
 type TabType =
   | 'image' | 'video' | 'storyboard'
   | 'anchor' | 'canvas' | 'cover'
@@ -114,7 +87,8 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
   // ── Core state ─────────────────────────────────────────────────────────
   const [tab, setTab] = useState<TabType>('image')
   // Light/dark are BOTH supported; this only picks the starting one.
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => resolveTheme('auto'))
+  // 只有深色一套皮肤：不再读取、也不允许切换主题。
+  const theme = 'dark' as const
   const [panelSize, setPanelSize] = useState<PanelSize>(() => resolvePanelSize())
   const [paramsOpen, setParamsOpen] = useState<boolean>(() => resolveParamsOpen())
   const [prompt, setPrompt] = useState('')
@@ -690,18 +664,12 @@ export function StudioPanel({ onClose, sendTask }: PanelProps) {
   },
     createElement(PanelTitlebar, {
       tab,
-      theme,
       panelSize,
       onCycleSize: () => {
         const i = PANEL_SIZE_ORDER.indexOf(panelSize)
         const next = PANEL_SIZE_ORDER[(i + 1) % PANEL_SIZE_ORDER.length]
         setPanelSize(next)
         try { localStorage?.setItem(PANEL_SIZE_KEY, next) } catch { /* ignore */ }
-      },
-      onToggleTheme: () => {
-        const next = theme === 'dark' ? 'light' : 'dark'
-        setTheme(next)
-        try { localStorage?.setItem(THEME_KEY, next) } catch { /* ignore */ }
       },
       onClose,
       onDragStart,

@@ -20,9 +20,9 @@
  */
 export const formControlStyles = `
 /* ── 1 · 文本框 ─────────────────────────────────────────────────────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] textarea,
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select {
+[data-dsh-agnes-studio] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+[data-dsh-agnes-studio] textarea,
+[data-dsh-agnes-studio] select {
   background: rgba(255, 255, 255, 0.055) !important;
   border: 1px solid rgba(255, 255, 255, 0.13) !important;
   color: rgba(238, 242, 250, 0.94) !important;
@@ -32,14 +32,14 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select {
   transition: border-color 0.15s ease, background 0.15s ease !important;
 }
 
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select {
+[data-dsh-agnes-studio] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+[data-dsh-agnes-studio] select {
   height: 34px !important;
   padding: 0 12px !important;
   font-size: 12.5px !important;
 }
 
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] textarea {
+[data-dsh-agnes-studio] textarea {
   padding: 10px 12px !important;
   font-size: 12.5px !important;
   line-height: 1.6 !important;
@@ -47,15 +47,15 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] textarea {
 }
 
 /* ── 2 · 占位符 ─────────────────────────────────────────────────────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input::placeholder,
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] textarea::placeholder {
+[data-dsh-agnes-studio] input::placeholder,
+[data-dsh-agnes-studio] textarea::placeholder {
   color: rgba(180, 194, 220, 0.42) !important;
 }
 
 /* ── 3 · 聚焦态：单一强调色（靛蓝） ──────────────────────────────────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] textarea:focus,
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select:focus {
+[data-dsh-agnes-studio] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+[data-dsh-agnes-studio] textarea:focus,
+[data-dsh-agnes-studio] select:focus {
   border-color: rgba(124, 148, 255, 0.7) !important;
   background: rgba(255, 255, 255, 0.085) !important;
   box-shadow: 0 0 0 3px rgba(98, 122, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
@@ -63,7 +63,7 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select:focus {
 }
 
 /* ── 4 · 下拉框：去掉系统箭头，换成内联 SVG ──────────────────────────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select {
+[data-dsh-agnes-studio] select {
   appearance: none !important;
   -webkit-appearance: none !important;
   padding-right: 32px !important;
@@ -73,13 +73,13 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select {
   background-size: 12px 12px !important;
   cursor: pointer;
 }
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] select option {
+[data-dsh-agnes-studio] select option {
   background: #1b2132;
   color: #eef2fa;
 }
 
 /* ── 5 · 文件选择 ───────────────────────────────────────────────────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"] {
+[data-dsh-agnes-studio] input[type="file"] {
   background: rgba(255, 255, 255, 0.045) !important;
   border: 1px dashed rgba(255, 255, 255, 0.16) !important;
   border-radius: 12px !important;
@@ -91,7 +91,7 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"] {
   box-sizing: border-box;
   cursor: pointer;
 }
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"]::file-selector-button {
+[data-dsh-agnes-studio] input[type="file"]::file-selector-button {
   margin-right: 10px !important;
   padding: 5px 13px !important;
   border-radius: 9px !important;
@@ -103,10 +103,10 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"]::f
   cursor: pointer;
   transition: background 0.15s ease;
 }
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"]::file-selector-button:hover {
+[data-dsh-agnes-studio] input[type="file"]::file-selector-button:hover {
   background: linear-gradient(180deg, rgba(146, 172, 255, 0.46), rgba(112, 142, 250, 0.3)) !important;
 }
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"]::-webkit-file-upload-button {
+[data-dsh-agnes-studio] input[type="file"]::-webkit-file-upload-button {
   margin-right: 10px;
   padding: 5px 13px;
   border-radius: 9px;
@@ -119,15 +119,15 @@ html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="file"]::-
 }
 
 /* ── 6 · 勾选框 / 单选框 ────────────────────────────────────────────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="checkbox"],
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] input[type="radio"] {
+[data-dsh-agnes-studio] input[type="checkbox"],
+[data-dsh-agnes-studio] input[type="radio"] {
   accent-color: #6f8cff !important;
   cursor: pointer;
 }
 
 /* ── 7 · 表单里的裸按钮（没带 agnes-btn 的）也统一成次要按钮外观 ──────── */
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] .agnes-split-params-body button:not(.agnes-btn):not(.agnes-split-toggle):not([class*="card"]):not([class*="tab"]),
-html:not([data-dsh-theme="light"]) [data-dsh-agnes-studio] .toolbox-page button:not(.agnes-btn):not([class*="tab"]):not([class*="type"]) {
+[data-dsh-agnes-studio] .agnes-split-params-body button:not(.agnes-btn):not(.agnes-split-toggle):not([class*="card"]):not([class*="tab"]),
+[data-dsh-agnes-studio] .toolbox-page button:not(.agnes-btn):not([class*="tab"]):not([class*="type"]) {
   border-radius: 10px !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
   background: rgba(255, 255, 255, 0.07) !important;
@@ -183,16 +183,16 @@ export const fileFieldStyles = `
   font-size: 11.5px;
   color: rgba(180, 194, 220, 0.55);
 }
-html[data-dsh-theme="light"] [data-dsh-agnes-studio] .agnes-file {
+[data-ag-theme="light"] [data-dsh-agnes-studio] .agnes-file {
   border-color: rgba(16, 24, 40, 0.16);
   background: #fff;
 }
-html[data-dsh-theme="light"] [data-dsh-agnes-studio] .agnes-file-btn {
+[data-ag-theme="light"] [data-dsh-agnes-studio] .agnes-file-btn {
   background: #f2f4f7;
   border-color: rgba(16, 24, 40, 0.14);
   color: #344054;
 }
-html[data-dsh-theme="light"] [data-dsh-agnes-studio] .agnes-file-name { color: #667085; }
+[data-ag-theme="light"] [data-dsh-agnes-studio] .agnes-file-name { color: #667085; }
 `
 
 /**

@@ -195,20 +195,20 @@ export const splitLayoutStyles = `
 }
 
 /* ── 浅色主题 ── */
-html[data-dsh-theme="light"] .agnes-split-display,
-html[data-dsh-theme="light"] .agnes-split-params {
+[data-ag-theme="light"] .agnes-split-display,
+[data-ag-theme="light"] .agnes-split-params {
   background: rgba(255, 255, 255, 0.72);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(16, 24, 40, 0.05);
 }
-html[data-dsh-theme="light"] .agnes-split-params-head {
+[data-ag-theme="light"] .agnes-split-params-head {
   color: #475467;
   border-bottom-color: rgba(16, 24, 40, 0.08);
 }
-html[data-dsh-theme="light"] .agnes-split-params-body input[type="text"],
-html[data-dsh-theme="light"] .agnes-split-params-body input[type="password"],
-html[data-dsh-theme="light"] .agnes-split-params-body input[type="number"],
-html[data-dsh-theme="light"] .agnes-split-params-body textarea,
-html[data-dsh-theme="light"] .agnes-split-params-body select {
+[data-ag-theme="light"] .agnes-split-params-body input[type="text"],
+[data-ag-theme="light"] .agnes-split-params-body input[type="password"],
+[data-ag-theme="light"] .agnes-split-params-body input[type="number"],
+[data-ag-theme="light"] .agnes-split-params-body textarea,
+[data-ag-theme="light"] .agnes-split-params-body select {
   background: #fff;
   border-color: rgba(16, 24, 40, 0.14);
   color: #101828;
@@ -376,7 +376,7 @@ export const fileInputStyles = `
 [data-dsh-agnes-studio] .agnes-split input[type="file"]::file-selector-button:hover {
   background: linear-gradient(180deg, rgba(140, 170, 255, 0.4), rgba(110, 140, 250, 0.26));
 }
-html[data-dsh-theme="light"] .agnes-split input[type="file"] {
+[data-ag-theme="light"] .agnes-split input[type="file"] {
   background: #fff;
   border-color: rgba(16, 24, 40, 0.16);
   color: #344054;
