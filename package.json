@@ -1,6 +1,6 @@
 {
   "name": "dsh-agnes-studio",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "🎬 泡泡猫的影视工具 — 生图/生视频/短剧/口播/画布/封面 + 全量并入的 Oh Story。v1.0.0 重构：15 个页面统一两列骨架、统一深色皮肤、假实现全部换成真实调用。需 DSH 0.2.2-rc.3（peer: host-webserver/client-runtime ^0.1.0-rc.6 || ^0.2.0-rc.1）。",
   "type": "module",
   "license": "MIT",
