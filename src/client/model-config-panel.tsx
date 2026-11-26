@@ -398,20 +398,35 @@ export function ModelConfigPanel(): unknown {
     ),
 
     // ── DSH 侧 ──
-    createElement('div', { className: 'agnes-section' },
-      createElement('div', { className: 'agnes-section-title' }, 'DSH 已配置的模型'),
-      view.dsh.available
-        ? createElement('div', null,
-            createElement('div', { style: { ...HINT, marginBottom: '8px' } },
-              `DSH 里有 ${view.dsh.providers.length} 个厂商可用。它们由 DSH 自己管密钥，本页只做展示；想在这里用，就把同一把 Key 填到上面。`),
-            ...view.dsh.providers.map(p =>
-              createElement('div', { key: p.id, className: 'agnes-mcfg-dsh' },
-                createElement('span', { className: 'agnes-mcfg-name' }, p.id),
-                createElement('span', { style: HINT }, p.models.length === 0 ? '未列出模型' : `${p.models.length} 个模型：${p.models.slice(0, 6).join('、')}${p.models.length > 6 ? '…' : ''}`),
+    // DSH 会把同一家厂商再挂一份「+ 自动识图」的视觉路由，列表里全是重复项，
+    // 这里按「去掉后缀」归并，只展示真正可用的厂商。
+    (() => {
+      const merged = new Map<string, string[]>()
+      for (const provider of view.dsh.providers) {
+        const name = provider.id.replace(/\s*\+\s*自动识图$/, '')
+        const existing = merged.get(name) ?? []
+        for (const model of provider.models) if (!existing.includes(model)) existing.push(model)
+        merged.set(name, existing)
+      }
+      const rows = [...merged.entries()]
+      return createElement('div', { className: 'agnes-section' },
+        createElement('div', { className: 'agnes-section-title' }, 'DSH 已配置的模型'),
+        view.dsh.available
+          ? createElement('div', null,
+              createElement('div', { style: { ...HINT, marginBottom: '8px' } },
+                `DSH 里有 ${rows.length} 个厂商路由（已按「+ 自动识图」归并）。它们由 DSH 自己管密钥，本页只做展示；想在这里用，就把同一把 Key 填到上面。`),
+              ...rows.map(([name, models]) =>
+                createElement('div', { key: name, className: 'agnes-mcfg-dsh' },
+                  createElement('span', { className: 'agnes-mcfg-name' }, name),
+                  createElement('span', { style: HINT },
+                    models.length === 0
+                      ? '未列出模型（可用性取决于该厂商是否暴露 /models）'
+                      : `${models.length} 个模型：${models.slice(0, 6).join('、')}${models.length > 6 ? '…' : ''}`),
+                ),
               ),
-            ),
-          )
-        : createElement('div', { style: HINT }, '宿主没有暴露 llm 服务（或没有配置任何厂商），这里为空。'),
-    ),
+            )
+          : createElement('div', { style: HINT }, '宿主没有暴露 llm 服务（或没有配置任何厂商），这里为空。'),
+      )
+    })(),
   )
 }
