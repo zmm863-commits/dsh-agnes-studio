@@ -560,7 +560,7 @@ export function BgVideoPanel() {
       ),
       ),
       currentTask?.segments && createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, `③ 分幕结果（共 ${currentTask.segments.length} 幕）`),
+      createElement('h4', null, `分幕结果（共 ${currentTask.segments.length} 幕）`),
       createElement('div', { className: 'bgvideo-segments' },
       currentTask.segments.map(seg =>
       createElement('div', { key: seg.index, className: 'bgvideo-segment' },
