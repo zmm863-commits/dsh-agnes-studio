@@ -113,6 +113,28 @@ export function buildUpstreamUrl(baseUrl: string, endpoint: string): string {
   return base + ep
 }
 
+/**
+ * 安全地取一个可选服务。
+ *
+ * Cordis 里直接写 `ctx.llm` 会在没有声明 inject 的情况下抛
+ * 「cannot get property "llm" without inject」—— 注意这**不是** undefined，
+ * 而是异常。可选依赖一律走这里：先试 ctx.get()，再兜底属性访问，全程 try/catch。
+ */
+function optionalService(ctx: Context, name: string): unknown {
+  const reader = ctx as unknown as { get?: (key: string) => unknown }
+  if (typeof reader.get === 'function') {
+    try {
+      const value = reader.get(name)
+      if (value !== undefined) return value
+    } catch { /* 某些版本对未声明服务也会抛 */ }
+  }
+  try {
+    return (ctx as unknown as Record<string, unknown>)[name]
+  } catch {
+    return undefined
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // API Key resolution
 // ═══════════════════════════════════════════════════════════════════════
@@ -567,7 +589,10 @@ export function apply(ctx: Context): void {
             // DSH 自己配置好的厂商与模型：只读展示，让用户知道"这里还有一份"，
             // 避免以为插件没读到他填的 Key。
             let dsh: { available: boolean; providers: Array<{ id: string; models: string[] }> } = { available: false, providers: [] }
-            const llm = (ctx as unknown as { llm?: { listProviders?: () => Array<{ name?: string; id?: string }>; listModels?: (p: string) => Promise<Array<{ id: string; name?: string }>> } }).llm
+            const llm = optionalService(ctx, 'llm') as {
+              listProviders?: () => Array<{ name?: string; id?: string }>
+              listModels?: (p: string) => Promise<Array<{ id: string; name?: string }>>
+            } | undefined
             if (llm !== undefined && typeof llm.listProviders === 'function') {
               try {
                 const providers = llm.listProviders()
@@ -826,12 +851,10 @@ export function apply(ctx: Context): void {
 
         // 语音：DSH 宿主若安装了 speechToText 服务就用它，否则诚实缺省（解析结果会标注无台词）
         const callSpeech = async (wav: Uint8Array): Promise<string> => {
-          const speech = (ctx as unknown as {
-            speechToText?: {
-              resolve?: (request: { audio: Uint8Array; language?: string }) => unknown
-              transcribe?: (spec: unknown, signal: AbortSignal) => Promise<{ text: string }>
-            }
-          }).speechToText
+          const speech = optionalService(ctx, 'speechToText') as {
+            resolve?: (request: { audio: Uint8Array; language?: string }) => unknown
+            transcribe?: (spec: unknown, signal: AbortSignal) => Promise<{ text: string }>
+          } | undefined
           if (speech === undefined || typeof speech.resolve !== 'function' || typeof speech.transcribe !== 'function') {
             throw new Error('宿主没有提供语音识别服务')
           }
