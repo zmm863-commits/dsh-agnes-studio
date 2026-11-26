@@ -189,7 +189,7 @@ function ParsePanel() {
       if (analysis === undefined) {
         // 老任务（改造前存的）没有分析数据
         return createElement('div', { className: 'parse-section' },
-          createElement('h4', null, '② 解析结果'),
+          createElement('h4', null, '解析结果'),
           createElement('p', null, '这个任务是旧版本产生的，没有分析数据。重新解析一次即可。'),
         )
       }
@@ -203,7 +203,7 @@ function ParsePanel() {
         }, '导出报告'),
       )
       return createElement('div', { className: 'parse-section' },
-        createElement('h4', null, '② 解析结果'),
+        createElement('h4', null, '解析结果'),
         header,
         analysis.warnings.length > 0 && createElement('div', { className: 'parse-warnings' },
           ...analysis.warnings.map((w, i) => createElement('div', { key: i }, `⚠ ${w}`)),

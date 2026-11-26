@@ -521,7 +521,7 @@ export function ModelConfigPanel(): unknown {
           style: { ...inputStyle, flex: '0 0 200px' },
           type: 'password',
           value: d.apiKey,
-          placeholder: vendor.configured ? '留空 = 不修改' : 'API Key',
+          placeholder: vendor.configured ? '留空 = 不修改' : '填入密钥',
           onChange: (e: Event) => {
             const value = (e.target as HTMLInputElement).value
             setDraft(prev => ({ ...prev, [vendor.id]: { ...prev[vendor.id] ?? { baseUrl: '', apiKey: '' }, apiKey: value } }))

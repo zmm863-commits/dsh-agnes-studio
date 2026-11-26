@@ -4,6 +4,8 @@
  */
 
 import { React, useState, useEffect, useCallback, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
+import { FileField } from './file-field.tsx'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────────
 
@@ -145,125 +147,108 @@ export function MvPanel() {
     }
   }
 
-  return createElement('div', { className: 'mv-panel' },
-    // 标题
-    createElement('div', { className: 'mv-header' },
-      createElement('h3', null, 'MTV 生成'),
-      createElement('p', { className: 'mv-desc' }, '上传音乐/形象 → AI 谱曲 → 设计 → 分镜 → 视频 → 合成'),
-    ),
-
-    // 错误提示
-    error && createElement('div', { className: 'mv-error' }, error),
-
-    // 当前任务状态
-    currentTask && createElement('div', { className: 'mv-status' },
+  return createElement(StudioSplit, {
+    title: "MTV",
+    desc: "上传音乐 → 分镜 → 逐段出片 → 拼片挂原曲；左边看进度与成片，右边是参数。",
+    params: [
+      error && createElement('div', { className: 'mv-error' }, error),
+      createElement('div', { className: 'mv-section' },
+      createElement('h4', null, '上传素材'),
+      createElement('div', { className: 'mv-form' },
+      createElement('label', { className: 'mv-label' },
+      '音源模式',
+      createElement('select', { value: audioMode, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setAudioMode(e.target.value) },
+      createElement('option', { value: 'upload' }, '上传音乐'),
+      createElement('option', { value: 'doubao' }, '豆包谱曲'),
+      ),
+      ),
+      audioMode === 'upload' && createElement('label', { className: 'mv-label' },
+      '音乐文件',
+      createElement(FileField, { accept: 'audio/*', onPick: (files: FileList) => setAudioFile(files[0] ?? null) }),
+      ),
+      audioFile && createElement('span', { className: 'mv-file' }, audioFile.name),
+      createElement('label', { className: 'mv-label' },
+      '歌词',
+      createElement('textarea', {
+      value: lyrics,
+      onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setLyrics(e.target.value),
+      placeholder: '输入歌词...',
+      rows: 4,
+      }),
+      ),
+      createElement('label', { className: 'mv-label' },
+      '形象照（可选）',
+      createElement(FileField, { accept: 'image/*', label: '选择形象图', emptyLabel: '未选择形象图', onPick: (files: FileList) => setAvatarFile(files[0] ?? null) }),
+      ),
+      avatarFile && createElement('span', { className: 'mv-file' }, avatarFile.name),
+      ),
+      ),
+      createElement('div', { className: 'mv-actions' },
+      createElement('button', {
+      className: 'mv-btn mv-btn-primary',
+      onClick: handleStart,
+      disabled: loading || (!audioFile && !lyrics.trim()),
+      }, loading ? '处理中...' : '开始生成 MTV'),
+      currentTask && createElement('button', {
+      className: 'mv-btn mv-btn-danger',
+      onClick: handleStop,
+      }, '停止'),
+      ),
+      currentTask && createElement('div', { className: 'mv-section' },
+      createElement('h4', null, '阶段确认'),
+      createElement('div', { className: 'mv-form' },
+      currentTask.status === 'music' && createElement('button', {
+      className: 'mv-btn mv-btn-secondary',
+      onClick: () => handleConfirm('music'),
+      }, '确认谱曲完成'),
+      currentTask.status === 'design' && createElement('button', {
+      className: 'mv-btn mv-btn-secondary',
+      onClick: () => handleConfirm('design'),
+      }, '确认设计完成'),
+      currentTask.status === 'storyboard' && createElement('button', {
+      className: 'mv-btn mv-btn-secondary',
+      onClick: () => handleConfirm('storyboard'),
+      }, '确认分镜完成'),
+      ),
+      ),
+    ],
+    children: [
+      currentTask && createElement('div', { className: 'mv-status' },
       createElement('div', { className: 'mv-status-header' },
-        createElement('span', null, `任务 ${currentTask.task_id}`),
-        createElement('span', { className: `mv-badge mv-badge-${currentTask.status}` },
-          statusLabel(currentTask.status)),
+      createElement('span', null, `任务 ${currentTask.task_id}`),
+      createElement('span', { className: `mv-badge mv-badge-${currentTask.status}` },
+      statusLabel(currentTask.status)),
       ),
       createElement('p', null, currentTask.message),
-    ),
-
-    // 素材上传
-    createElement('div', { className: 'mv-section' },
-      createElement('h4', null, '① 上传素材'),
-      createElement('div', { className: 'mv-form' },
-        createElement('label', { className: 'mv-label' },
-          '音源模式',
-          createElement('select', { value: audioMode, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setAudioMode(e.target.value) },
-            createElement('option', { value: 'upload' }, '上传音乐'),
-            createElement('option', { value: 'doubao' }, '豆包谱曲'),
-          ),
-        ),
-
-        audioMode === 'upload' && createElement('label', { className: 'mv-label' },
-          '音乐文件',
-          createElement('input', { type: 'file', accept: 'audio/*', onChange: handleFileSelect(setAudioFile) }),
-        ),
-        audioFile && createElement('span', { className: 'mv-file' }, audioFile.name),
-
-        createElement('label', { className: 'mv-label' },
-          '歌词',
-          createElement('textarea', {
-            value: lyrics,
-            onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => setLyrics(e.target.value),
-            placeholder: '输入歌词...',
-            rows: 4,
-          }),
-        ),
-
-        createElement('label', { className: 'mv-label' },
-          '形象照（可选）',
-          createElement('input', { type: 'file', accept: 'image/*', onChange: handleFileSelect(setAvatarFile) }),
-        ),
-        avatarFile && createElement('span', { className: 'mv-file' }, avatarFile.name),
       ),
-    ),
-
-    // 操作按钮
-    createElement('div', { className: 'mv-actions' },
-      createElement('button', {
-        className: 'mv-btn mv-btn-primary',
-        onClick: handleStart,
-        disabled: loading || (!audioFile && !lyrics.trim()),
-      }, loading ? '处理中...' : '开始生成 MTV'),
-
-      currentTask && createElement('button', {
-        className: 'mv-btn mv-btn-danger',
-        onClick: handleStop,
-      }, '停止'),
-    ),
-
-    // 阶段确认
-    currentTask && createElement('div', { className: 'mv-section' },
-      createElement('h4', null, '② 阶段确认'),
+      currentTask?.status === 'completed' && createElement('div', { className: 'mv-section' },
+      createElement('h4', null, '成片预览'),
       createElement('div', { className: 'mv-form' },
-        currentTask.status === 'music' && createElement('button', {
-          className: 'mv-btn mv-btn-secondary',
-          onClick: () => handleConfirm('music'),
-        }, '确认谱曲完成'),
-        currentTask.status === 'design' && createElement('button', {
-          className: 'mv-btn mv-btn-secondary',
-          onClick: () => handleConfirm('design'),
-        }, '确认设计完成'),
-        currentTask.status === 'storyboard' && createElement('button', {
-          className: 'mv-btn mv-btn-secondary',
-          onClick: () => handleConfirm('storyboard'),
-        }, '确认分镜完成'),
+      createElement('video', { controls: true, className: 'mv-video' },
+      createElement('source', { src: `/agnes-studio/api/mv/video/${currentTask.task_id}`, type: 'video/mp4' }),
+      '您的浏览器不支持视频播放'
       ),
-    ),
-
-    // 成片预览
-    currentTask?.status === 'completed' && createElement('div', { className: 'mv-section' },
-      createElement('h4', null, '③ 成片预览'),
-      createElement('div', { className: 'mv-form' },
-        createElement('video', { controls: true, className: 'mv-video' },
-          createElement('source', { src: `/agnes-studio/api/mv/video/${currentTask.task_id}`, type: 'video/mp4' }),
-          '您的浏览器不支持视频播放'
-        ),
       ),
-    ),
-
-    // 任务列表
-    createElement('div', { className: 'mv-section' },
+      ),
+      createElement('div', { className: 'mv-section' },
       createElement('h4', null, '历史任务'),
       tasks.length === 0
-        ? createElement('p', { className: 'mv-empty' }, '暂无任务')
-        : createElement('div', { className: 'mv-task-list' },
-            tasks.slice(0, 5).map(task =>
-              createElement('div', {
-                key: task.task_id,
-                className: 'mv-task-item',
-                onClick: () => setCurrentTask(task),
-              },
-                createElement('span', null, `任务 ${task.task_id}`),
-                createElement('span', { className: `mv-badge mv-badge-${task.status}` },
-                  statusLabel(task.status)),
-                createElement('span', { className: 'mv-task-time' }, new Date(task.created_at).toLocaleString()),
-              )
-            ),
-          ),
-    ),
-  )
+      ? createElement('p', { className: 'mv-empty' }, '暂无任务')
+      : createElement('div', { className: 'mv-task-list' },
+      tasks.slice(0, 5).map(task =>
+      createElement('div', {
+      key: task.task_id,
+      className: 'mv-task-item',
+      onClick: () => setCurrentTask(task),
+      },
+      createElement('span', null, `任务 ${task.task_id}`),
+      createElement('span', { className: `mv-badge mv-badge-${task.status}` },
+      statusLabel(task.status)),
+      createElement('span', { className: 'mv-task-time' }, new Date(task.created_at).toLocaleString()),
+      )
+      ),
+      ),
+      ),
+    ],
+  })
 }

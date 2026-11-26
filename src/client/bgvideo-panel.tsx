@@ -4,6 +4,8 @@
  */
 
 import { React, useState, useEffect, useCallback, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
+import { FileField } from './file-field.tsx'
 
 // ─── 类型定义 ──────────────────────────────────────────────────────────────
 
@@ -305,329 +307,294 @@ export function BgVideoPanel() {
     setShowPreview(true)
   }, [currentTask])
 
-  return createElement('div', { className: 'bgvideo-panel' },
-    // 标题
-    createElement('div', { className: 'bgvideo-header' },
-      createElement('h3', null, '背景视频生成'),
-      createElement('p', { className: 'bgvideo-desc' }, '上传素材 → AI 分幕 → 生成背景视频'),
-    ),
-
-    // 错误提示
-    error && createElement('div', { className: 'bgvideo-error' }, error),
-
-    // 当前任务状态
-    currentTask && createElement('div', { className: 'bgvideo-status' },
+  return createElement(StudioSplit, {
+    title: "背景视频",
+    desc: "上传素材 → AI 分幕 → 写分镜 → 定妆 → 出片；左边看进度与结果，右边是每阶段的参数。",
+    params: [
+      error && createElement('div', { className: 'bgvideo-error' }, error),
+      createElement('div', { className: 'bgvideo-section' },
+      createElement('h4', null, '上传素材'),
+      createElement('div', { className: 'bgvideo-form' },
+      createElement('label', { className: 'bgvideo-label' },
+      '原声（必填）',
+      createElement(FileField, { accept: 'audio/*', onPick: (files: FileList) => setAudioFile(files[0] ?? null) }),
+      ),
+      audioFile && createElement('span', { className: 'bgvideo-file' }, audioFile.name),
+      createElement('label', { className: 'bgvideo-label' },
+      '歌词（.lrc）',
+      createElement(FileField, { accept: '.lrc,.txt', onPick: (files: FileList) => setLrcFile(files[0] ?? null) }),
+      ),
+      lrcFile && createElement('span', { className: 'bgvideo-file' }, lrcFile.name),
+      createElement('label', { className: 'bgvideo-label' },
+      '文稿（朗诵档）',
+      createElement(FileField, { accept: '.txt,.docx,.md', onPick: (files: FileList) => setScriptFile(files[0] ?? null) }),
+      ),
+      scriptFile && createElement('span', { className: 'bgvideo-file' }, scriptFile.name),
+      createElement('label', { className: 'bgvideo-label' },
+      '参考片（可选）',
+      createElement(FileField, { accept: 'video/*', onPick: (files: FileList) => setRefVideoFile(files[0] ?? null) }),
+      ),
+      refVideoFile && createElement('span', { className: 'bgvideo-file' }, refVideoFile.name),
+      createElement('label', { className: 'bgvideo-label' },
+      '伴奏（可选）',
+      createElement(FileField, { accept: 'audio/*', onPick: (files: FileList) => setAccompanimentFile(files[0] ?? null) }),
+      ),
+      accompanimentFile && createElement('span', { className: 'bgvideo-file' }, accompanimentFile.name),
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-section' },
+      createElement('h4', null, '风格截图（可选）'),
+      createElement('div', { className: 'bgvideo-form' },
+      createElement('label', { className: 'bgvideo-label' },
+      '上传风格截图',
+      createElement(FileField, { accept: 'image/*', multiple: true, label: '选择截图', emptyLabel: '未选择截图', onPick: (files: FileList) => handleStyleUpload({ target: { files } } as unknown as { target: HTMLInputElement }) }),
+      ),
+      styleFiles.length > 0 && createElement('div', { className: 'bgvideo-style-list' },
+      styleFiles.map((f, i) =>
+      createElement('span', { key: i, className: 'bgvideo-file' }, f.name)
+      )
+      ),
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-secondary',
+      onClick: handleGenerate,
+      disabled: generating || !currentTask,
+      }, generating ? '生成中...' : '一键出方案'),
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-section' },
+      createElement('h4', null, '角色管理'),
+      createElement('div', { className: 'bgvideo-form' },
+      createElement('label', { className: 'bgvideo-label' },
+      '角色名称',
+      createElement('input', { type: 'text', value: charName, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCharName(e.target.value), placeholder: '如：林薇' }),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      '性别',
+      createElement('select', { value: charGender, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setCharGender(e.target.value) },
+      createElement('option', { value: '女' }, '女'),
+      createElement('option', { value: '男' }, '男'),
+      ),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      '外观描述',
+      createElement('input', { type: 'text', value: charAppearance, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCharAppearance(e.target.value), placeholder: '如：长发及腰、红色连衣裙' }),
+      ),
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-secondary',
+      onClick: handleCreateCharacter,
+      disabled: !charName.trim(),
+      }, '创建角色'),
+      ),
+      characters.length > 0 && createElement('div', { className: 'bgvideo-char-list' },
+      characters.map(char =>
+      createElement('div', { key: char.id, className: 'bgvideo-char-item' },
+      createElement('div', { className: 'bgvideo-char-info' },
+      createElement('span', { className: 'bgvideo-char-name' }, char.name),
+      createElement('span', { className: 'bgvideo-char-gender' }, char.gender),
+      char.appearance && createElement('span', { className: 'bgvideo-char-appearance' }, char.appearance),
+      ),
+      createElement('div', { className: 'bgvideo-char-actions' },
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-small',
+      onClick: () => handleGenPortrait(char.id),
+      disabled: !currentTask,
+      }, '定妆照'),
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-small',
+      onClick: () => handleAutoAnchor(char.id),
+      disabled: !currentTask,
+      }, '定锚'),
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-small bgvideo-btn-danger',
+      onClick: () => handleDeleteCharacter(char.id),
+      }, '🗑'),
+      ),
+      char.anchor && createElement('span', { className: 'bgvideo-char-anchor' }, `锚图: ${char.anchor}`),
+      )
+      )
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-section' },
+      createElement('h4', null, '分镜编辑'),
+      createElement('div', { className: 'bgvideo-form' },
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-secondary',
+      onClick: handleWriteShots,
+      disabled: writingShots || !currentTask,
+      }, writingShots ? '生成中...' : '生成分镜'),
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-secondary',
+      onClick: handleShowContactSheet,
+      disabled: !currentTask,
+      }, '联系表'),
+      ),
+      currentTask?.shots && currentTask.shots.length > 0 && createElement('div', { className: 'bgvideo-shot-list' },
+      currentTask.shots.slice(0, 10).map(shot =>
+      createElement('div', { key: shot.index, className: 'bgvideo-shot-item' },
+      createElement('span', { className: 'bgvideo-shot-index' }, `${shot.index}`),
+      createElement('span', { className: 'bgvideo-shot-desc' }, shot.desc),
+      shot.chars && shot.chars.length > 0 && createElement('span', { className: 'bgvideo-shot-chars' }, shot.chars.join('、')),
+      )
+      ),
+      currentTask.shots.length > 10 && createElement('p', { className: 'bgvideo-more' }, `... 共 ${currentTask.shots.length} 幕`),
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-section' },
+      createElement('h4', null, '出片 + 验收'),
+      createElement('div', { className: 'bgvideo-form' },
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-primary',
+      onClick: handleGenerateVideo,
+      disabled: generatingVideo || !currentTask || currentTask.status === 'generating',
+      }, generatingVideo ? '生成中...' : '开始出片'),
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-secondary',
+      onClick: handlePreview,
+      disabled: !currentTask || currentTask.status !== 'completed',
+      }, '预览成片'),
+      ),
+      currentTask?.status === 'generating' && createElement('div', { className: 'bgvideo-progress' },
+      createElement('div', { className: 'bgvideo-progress-bar' }),
+      createElement('p', null, currentTask.message),
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-section' },
+      createElement('h4', null, '配置'),
+      createElement('div', { className: 'bgvideo-form' },
+      createElement('label', { className: 'bgvideo-label' },
+      'ASR 模型',
+      createElement('select', { value: asrModel, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setAsrModel(e.target.value) },
+      createElement('option', { value: 'small' }, 'Small（快速）'),
+      createElement('option', { value: 'medium' }, 'Medium（平衡）'),
+      createElement('option', { value: 'large' }, 'Large（精准）'),
+      ),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      '场景描述',
+      createElement('input', { type: 'text', value: scene, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setScene(e.target.value), placeholder: '如：校园、都市、古风' }),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      '角色描述',
+      createElement('input', { type: 'text', value: role, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setRole(e.target.value), placeholder: '如：青春活泼的女生' }),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      '语音音色',
+      createElement('select', { value: voice, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setVoice(e.target.value) },
+      createElement('option', { value: 'xiaoxiao' }, '晓晓（女声）'),
+      createElement('option', { value: 'yunxi' }, '云希（男声）'),
+      createElement('option', { value: 'yunyang' }, '云扬（男声）'),
+      ),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      '抽帧间隔（秒）',
+      createElement('input', { type: 'number', value: frameEverySec, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setFrameEverySec(Number(e.target.value)), min: 1, max: 10 }),
+      ),
+      createElement('label', { className: 'bgvideo-label' },
+      createElement('input', { type: 'checkbox', checked: planOnly, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPlanOnly(e.target.checked) }),
+      ' 只分幕，不生成（零成本）',
+      ),
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-actions' },
+      createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-primary',
+      onClick: handleStart,
+      disabled: loading || !audioFile,
+      }, loading ? '处理中...' : '开始生成背景视频'),
+      currentTask && createElement('button', {
+      className: 'bgvideo-btn bgvideo-btn-danger',
+      onClick: handleStop,
+      }, '停止'),
+      ),
+    ],
+    children: [
+      currentTask && createElement('div', { className: 'bgvideo-status' },
       createElement('div', { className: 'bgvideo-status-header' },
-        createElement('span', null, `任务 ${currentTask.task_id}`),
-        createElement('span', { className: `bgvideo-badge bgvideo-badge-${currentTask.status}` },
-          currentTask.status === 'segmenting' ? '分幕中' :
-          currentTask.status === 'segmented' ? '分幕完成' :
-          currentTask.status === 'generating' ? '生成中' :
-          currentTask.status === 'completed' ? '已完成' :
-          currentTask.status === 'failed' ? '失败' : '已停止'),
+      createElement('span', null, `任务 ${currentTask.task_id}`),
+      createElement('span', { className: `bgvideo-badge bgvideo-badge-${currentTask.status}` },
+      currentTask.status === 'segmenting' ? '分幕中' :
+      currentTask.status === 'segmented' ? '分幕完成' :
+      currentTask.status === 'generating' ? '生成中' :
+      currentTask.status === 'completed' ? '已完成' :
+      currentTask.status === 'failed' ? '失败' : '已停止'),
       ),
       createElement('p', null, currentTask.message),
       currentTask.total && createElement('p', null, `共 ${currentTask.total} 幕`),
-    ),
-
-    // 素材上传
-    createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, '① 上传素材'),
-      createElement('div', { className: 'bgvideo-form' },
-        createElement('label', { className: 'bgvideo-label' },
-          '原声（必填）',
-          createElement('input', { type: 'file', accept: 'audio/*', onChange: handleFileSelect(setAudioFile) }),
-        ),
-        audioFile && createElement('span', { className: 'bgvideo-file' }, audioFile.name),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '歌词（.lrc）',
-          createElement('input', { type: 'file', accept:'.lrc,.txt', onChange: handleFileSelect(setLrcFile) }),
-        ),
-        lrcFile && createElement('span', { className: 'bgvideo-file' }, lrcFile.name),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '文稿（朗诵档）',
-          createElement('input', { type: 'file', accept:'.txt,.docx,.md', onChange: handleFileSelect(setScriptFile) }),
-        ),
-        scriptFile && createElement('span', { className: 'bgvideo-file' }, scriptFile.name),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '参考片（可选）',
-          createElement('input', { type: 'file', accept: 'video/*', onChange: handleFileSelect(setRefVideoFile) }),
-        ),
-        refVideoFile && createElement('span', { className: 'bgvideo-file' }, refVideoFile.name),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '伴奏（可选）',
-          createElement('input', { type: 'file', accept: 'audio/*', onChange: handleFileSelect(setAccompanimentFile) }),
-        ),
-        accompanimentFile && createElement('span', { className: 'bgvideo-file' }, accompanimentFile.name),
       ),
-    ),
-
-    // 风格截图上传（阶段 2）
-    createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, '③ 风格截图（可选）'),
-      createElement('div', { className: 'bgvideo-form' },
-        createElement('label', { className: 'bgvideo-label' },
-          '上传风格截图',
-          createElement('input', { type: 'file', accept: 'image/*', multiple: true, onChange: handleStyleUpload }),
-        ),
-        styleFiles.length > 0 && createElement('div', { className: 'bgvideo-style-list' },
-          styleFiles.map((f, i) =>
-            createElement('span', { key: i, className: 'bgvideo-file' }, f.name)
-          )
-        ),
-        createElement('button', {
-          className: 'bgvideo-btn bgvideo-btn-secondary',
-          onClick: handleGenerate,
-          disabled: generating || !currentTask,
-        }, generating ? '生成中...' : '一键出方案'),
-      ),
-    ),
-
-    // 角色管理（阶段 3）
-    createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, '④ 角色管理'),
-      createElement('div', { className: 'bgvideo-form' },
-        createElement('label', { className: 'bgvideo-label' },
-          '角色名称',
-          createElement('input', { type: 'text', value: charName, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCharName(e.target.value), placeholder: '如：林薇' }),
-        ),
-        createElement('label', { className: 'bgvideo-label' },
-          '性别',
-          createElement('select', { value: charGender, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setCharGender(e.target.value) },
-            createElement('option', { value: '女' }, '女'),
-            createElement('option', { value: '男' }, '男'),
-          ),
-        ),
-        createElement('label', { className: 'bgvideo-label' },
-          '外观描述',
-          createElement('input', { type: 'text', value: charAppearance, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setCharAppearance(e.target.value), placeholder: '如：长发及腰、红色连衣裙' }),
-        ),
-        createElement('button', {
-          className: 'bgvideo-btn bgvideo-btn-secondary',
-          onClick: handleCreateCharacter,
-          disabled: !charName.trim(),
-        }, '创建角色'),
-      ),
-      characters.length > 0 && createElement('div', { className: 'bgvideo-char-list' },
-        characters.map(char =>
-          createElement('div', { key: char.id, className: 'bgvideo-char-item' },
-            createElement('div', { className: 'bgvideo-char-info' },
-              createElement('span', { className: 'bgvideo-char-name' }, char.name),
-              createElement('span', { className: 'bgvideo-char-gender' }, char.gender),
-              char.appearance && createElement('span', { className: 'bgvideo-char-appearance' }, char.appearance),
-            ),
-            createElement('div', { className: 'bgvideo-char-actions' },
-              createElement('button', {
-                className: 'bgvideo-btn bgvideo-btn-small',
-                onClick: () => handleGenPortrait(char.id),
-                disabled: !currentTask,
-              }, '定妆照'),
-              createElement('button', {
-                className: 'bgvideo-btn bgvideo-btn-small',
-                onClick: () => handleAutoAnchor(char.id),
-                disabled: !currentTask,
-              }, '定锚'),
-              createElement('button', {
-                className: 'bgvideo-btn bgvideo-btn-small bgvideo-btn-danger',
-                onClick: () => handleDeleteCharacter(char.id),
-              }, '🗑'),
-            ),
-            char.anchor && createElement('span', { className: 'bgvideo-char-anchor' }, `锚图: ${char.anchor}`),
-          )
-        )
-      ),
-    ),
-
-    // 分镜编辑（阶段 4）
-    createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, '⑤ 分镜编辑'),
-      createElement('div', { className: 'bgvideo-form' },
-        createElement('button', {
-          className: 'bgvideo-btn bgvideo-btn-secondary',
-          onClick: handleWriteShots,
-          disabled: writingShots || !currentTask,
-        }, writingShots ? '生成中...' : '生成分镜'),
-        createElement('button', {
-          className: 'bgvideo-btn bgvideo-btn-secondary',
-          onClick: handleShowContactSheet,
-          disabled: !currentTask,
-        }, '联系表'),
-      ),
-      currentTask?.shots && currentTask.shots.length > 0 && createElement('div', { className: 'bgvideo-shot-list' },
-        currentTask.shots.slice(0, 10).map(shot =>
-          createElement('div', { key: shot.index, className: 'bgvideo-shot-item' },
-            createElement('span', { className: 'bgvideo-shot-index' }, `${shot.index}`),
-            createElement('span', { className: 'bgvideo-shot-desc' }, shot.desc),
-            shot.chars && shot.chars.length > 0 && createElement('span', { className: 'bgvideo-shot-chars' }, shot.chars.join('、')),
-          )
-        ),
-        currentTask.shots.length > 10 && createElement('p', { className: 'bgvideo-more' }, `... 共 ${currentTask.shots.length} 幕`),
-      ),
-    ),
-
-    // 联系表弹窗
-    showContactSheet && createElement('div', { className: 'bgvideo-modal' },
+      showContactSheet && createElement('div', { className: 'bgvideo-modal' },
       createElement('div', { className: 'bgvideo-modal-content' },
-        createElement('div', { className: 'bgvideo-modal-header' },
-          createElement('h4', null, '联系表'),
-          createElement('button', {
-            className: 'bgvideo-modal-close',
-            onClick: () => setShowContactSheet(false),
-          }, '✕'),
-        ),
-        createElement('div', { className: 'bgvideo-contact-grid' },
-          contactImages.slice(0, 20).map((img, i) =>
-            createElement('div', { key: i, className: 'bgvideo-contact-item' },
-              createElement('img', { src: img, alt: `Shot ${i + 1}` }),
-              createElement('span', null, `${i + 1}`),
-            )
-          ),
-        ),
-      ),
-    ),
-
-    // 出片 + 验收（阶段 5）
-    createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, '⑥ 出片 + 验收'),
-      createElement('div', { className: 'bgvideo-form' },
-        createElement('button', {
-          className: 'bgvideo-btn bgvideo-btn-primary',
-          onClick: handleGenerateVideo,
-          disabled: generatingVideo || !currentTask || currentTask.status === 'generating',
-        }, generatingVideo ? '生成中...' : '开始出片'),
-        createElement('button', {
-          className: 'bgvideo-btn bgvideo-btn-secondary',
-          onClick: handlePreview,
-          disabled: !currentTask || currentTask.status !== 'completed',
-        }, '预览成片'),
-      ),
-      currentTask?.status === 'generating' && createElement('div', { className: 'bgvideo-progress' },
-        createElement('div', { className: 'bgvideo-progress-bar' }),
-        createElement('p', null, currentTask.message),
-      ),
-    ),
-
-    // 预览弹窗
-    showPreview && createElement('div', { className: 'bgvideo-modal' },
-      createElement('div', { className: 'bgvideo-modal-content' },
-        createElement('div', { className: 'bgvideo-modal-header' },
-          createElement('h4', null, '预览成片'),
-          createElement('button', {
-            className: 'bgvideo-modal-close',
-            onClick: () => setShowPreview(false),
-          }, '✕'),
-        ),
-        createElement('div', { className: 'bgvideo-preview' },
-          currentTask?.status === 'completed'
-            ? createElement('video', { controls: true, className: 'bgvideo-video' },
-                createElement('source', { src: `/agnes-studio/api/bgvideo/reqfile?task_id=${currentTask.task_id}`, type: 'video/mp4' }),
-                '您的浏览器不支持视频播放'
-              )
-            : createElement('p', null, '请先完成出片'),
-        ),
-      ),
-    ),
-
-    // 配置
-    createElement('div', { className: 'bgvideo-section' },
-      createElement('h4', null, '② 配置'),
-      createElement('div', { className: 'bgvideo-form' },
-        createElement('label', { className: 'bgvideo-label' },
-          'ASR 模型',
-          createElement('select', { value: asrModel, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setAsrModel(e.target.value) },
-            createElement('option', { value: 'small' }, 'Small（快速）'),
-            createElement('option', { value: 'medium' }, 'Medium（平衡）'),
-            createElement('option', { value: 'large' }, 'Large（精准）'),
-          ),
-        ),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '场景描述',
-          createElement('input', { type: 'text', value: scene, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setScene(e.target.value), placeholder: '如：校园、都市、古风' }),
-        ),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '角色描述',
-          createElement('input', { type: 'text', value: role, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setRole(e.target.value), placeholder: '如：青春活泼的女生' }),
-        ),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '语音音色',
-          createElement('select', { value: voice, onChange: (e: React.ChangeEvent<HTMLSelectElement>) => setVoice(e.target.value) },
-            createElement('option', { value: 'xiaoxiao' }, '晓晓（女声）'),
-            createElement('option', { value: 'yunxi' }, '云希（男声）'),
-            createElement('option', { value: 'yunyang' }, '云扬（男声）'),
-          ),
-        ),
-
-        createElement('label', { className: 'bgvideo-label' },
-          '抽帧间隔（秒）',
-          createElement('input', { type: 'number', value: frameEverySec, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setFrameEverySec(Number(e.target.value)), min: 1, max: 10 }),
-        ),
-
-        createElement('label', { className: 'bgvideo-label' },
-          createElement('input', { type: 'checkbox', checked: planOnly, onChange: (e: React.ChangeEvent<HTMLInputElement>) => setPlanOnly(e.target.checked) }),
-          ' 只分幕，不生成（零成本）',
-        ),
-      ),
-    ),
-
-    // 操作按钮
-    createElement('div', { className: 'bgvideo-actions' },
+      createElement('div', { className: 'bgvideo-modal-header' },
+      createElement('h4', null, '联系表'),
       createElement('button', {
-        className: 'bgvideo-btn bgvideo-btn-primary',
-        onClick: handleStart,
-        disabled: loading || !audioFile,
-      }, loading ? '处理中...' : '开始生成背景视频'),
-
-      currentTask && createElement('button', {
-        className: 'bgvideo-btn bgvideo-btn-danger',
-        onClick: handleStop,
-      }, '停止'),
-    ),
-
-    // 分幕结果
-    currentTask?.segments && createElement('div', { className: 'bgvideo-section' },
+      className: 'bgvideo-modal-close',
+      onClick: () => setShowContactSheet(false),
+      }, '✕'),
+      ),
+      createElement('div', { className: 'bgvideo-contact-grid' },
+      contactImages.slice(0, 20).map((img, i) =>
+      createElement('div', { key: i, className: 'bgvideo-contact-item' },
+      createElement('img', { src: img, alt: `Shot ${i + 1}` }),
+      createElement('span', null, `${i + 1}`),
+      )
+      ),
+      ),
+      ),
+      ),
+      showPreview && createElement('div', { className: 'bgvideo-modal' },
+      createElement('div', { className: 'bgvideo-modal-content' },
+      createElement('div', { className: 'bgvideo-modal-header' },
+      createElement('h4', null, '预览成片'),
+      createElement('button', {
+      className: 'bgvideo-modal-close',
+      onClick: () => setShowPreview(false),
+      }, '✕'),
+      ),
+      createElement('div', { className: 'bgvideo-preview' },
+      currentTask?.status === 'completed'
+      ? createElement('video', { controls: true, className: 'bgvideo-video' },
+      createElement('source', { src: `/agnes-studio/api/bgvideo/reqfile?task_id=${currentTask.task_id}`, type: 'video/mp4' }),
+      '您的浏览器不支持视频播放'
+      )
+      : createElement('p', null, '请先完成出片'),
+      ),
+      ),
+      ),
+      currentTask?.segments && createElement('div', { className: 'bgvideo-section' },
       createElement('h4', null, `③ 分幕结果（共 ${currentTask.segments.length} 幕）`),
       createElement('div', { className: 'bgvideo-segments' },
-        currentTask.segments.map(seg =>
-          createElement('div', { key: seg.index, className: 'bgvideo-segment' },
-            createElement('div', { className: 'bgvideo-segment-header' },
-              createElement('span', null, `第 ${seg.index} 幕`),
-              createElement('span', { className: 'bgvideo-segment-time' }, `${seg.start}s - ${seg.end}s`),
-            ),
-            createElement('p', { className: 'bgvideo-segment-text' }, seg.text),
-          )
-        ),
+      currentTask.segments.map(seg =>
+      createElement('div', { key: seg.index, className: 'bgvideo-segment' },
+      createElement('div', { className: 'bgvideo-segment-header' },
+      createElement('span', null, `第 ${seg.index} 幕`),
+      createElement('span', { className: 'bgvideo-segment-time' }, `${seg.start}s - ${seg.end}s`),
       ),
-    ),
-
-    // 任务列表
-    createElement('div', { className: 'bgvideo-section' },
+      createElement('p', { className: 'bgvideo-segment-text' }, seg.text),
+      )
+      ),
+      ),
+      ),
+      createElement('div', { className: 'bgvideo-section' },
       createElement('h4', null, '历史任务'),
       tasks.length === 0
-        ? createElement('p', { className: 'bgvideo-empty' }, '暂无任务')
-        : createElement('div', { className: 'bgvideo-task-list' },
-            tasks.slice(0, 5).map(task =>
-              createElement('div', {
-                key: task.task_id,
-                className: 'bgvideo-task-item',
-                onClick: () => setCurrentTask(task),
-              },
-                createElement('span', null, `任务 ${task.task_id}`),
-                createElement('span', { className: `bgvideo-badge bgvideo-badge-${task.status}` },
-                  task.status === 'segmented' ? '分幕完成' :
-                  task.status === 'generating' ? '生成中' :
-                  task.status === 'completed' ? '已完成' :
-                  task.status === 'failed' ? '失败' : '已停止'),
-                createElement('span', { className: 'bgvideo-task-time' }, new Date(task.created_at).toLocaleString()),
-              )
-            ),
-          ),
-    ),
-  )
+      ? createElement('p', { className: 'bgvideo-empty' }, '暂无任务')
+      : createElement('div', { className: 'bgvideo-task-list' },
+      tasks.slice(0, 5).map(task =>
+      createElement('div', {
+      key: task.task_id,
+      className: 'bgvideo-task-item',
+      onClick: () => setCurrentTask(task),
+      },
+      createElement('span', null, `任务 ${task.task_id}`),
+      createElement('span', { className: `bgvideo-badge bgvideo-badge-${task.status}` },
+      task.status === 'segmented' ? '分幕完成' :
+      task.status === 'generating' ? '生成中' :
+      task.status === 'completed' ? '已完成' :
+      task.status === 'failed' ? '失败' : '已停止'),
+      createElement('span', { className: 'bgvideo-task-time' }, new Date(task.created_at).toLocaleString()),
+      )
+      ),
+      ),
+      ),
+    ],
+  })
 }

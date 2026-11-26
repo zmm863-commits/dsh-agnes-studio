@@ -38,10 +38,12 @@ import { DOCK_BOTTOM_CSS } from './styles/23-dock-bottom.ts'
 import { UNIFY_CSS } from './styles/24-unify.ts'
 import { MCFG_CSS } from './styles/25-mcfg.ts'
 import { tabFixStyles } from './styles/26-tab-fix.ts'
-import { coverOrderStyles, splitLayoutStyles, tabbedPageStyles } from './styles/27-split.ts'
+import { coverOrderStyles, expertStyles, fileInputStyles, splitLayoutStyles, tabbedPageStyles } from './styles/27-split.ts'
+import { fileFieldStyles, flatSectionsStyles, formControlStyles } from './styles/28-forms.ts'
 
 const TAB_FIX_CSS = tabFixStyles
-const SPLIT_CSS = splitLayoutStyles + tabbedPageStyles + coverOrderStyles
+const SPLIT_CSS = splitLayoutStyles + tabbedPageStyles + coverOrderStyles + expertStyles + fileInputStyles
+const FORMS_CSS = formControlStyles + fileFieldStyles + flatSectionsStyles
 
 /**
  * 层的顺序即层叠顺序（后写的覆盖先写的），请勿随意调整。
@@ -77,6 +79,7 @@ const CSS = [
   MCFG_CSS,
   TAB_FIX_CSS,
   SPLIT_CSS,
+  FORMS_CSS,
 ].join('')
 
 

@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, createElement } from './react-shim.ts'
+import { StudioSplit } from './split-layout.tsx'
 
 import { injectStyles } from './styles.ts'
 import { fetchExpertTypes, generateExpertPrompt, type ExpertType } from './prompt-expert.ts'
@@ -58,119 +59,99 @@ export function PromptExpertPanel({ textModels, onUseForImage, onUseForVideo }: 
     try { navigator.clipboard?.writeText(text) } catch { /* ignore */ }
   }, [])
 
-  const rootStyle: any = { padding: '16px', overflowY: 'auto', height: '100%' }
+  return createElement(StudioSplit, {
+    title: '提示词专家',
+    desc: '中文想法 → 中英对照提示词；生成后可直接送进生图 / 生视频。',
+    params: [
+      error !== '' ? createElement('div', {
+        style: { padding: '6px', borderRadius: '8px', background: 'rgba(255,107,107,0.12)', color: '#ff8d8d', fontSize: '11.5px' },
+      }, error) : null,
 
-  return createElement('div', { style: rootStyle },
-    createElement('div', { style: { fontSize: '16px', fontWeight: 700, marginBottom: '16px' } }, '提示词专家'),
-
-    // Expert grid
-    types.length > 0 ? createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', marginBottom: '16px' } },
-      ...types.map((t: ExpertType) =>
-        createElement('div', {
+      // 专家类型
+      createElement('div', { className: 'pe-types' },
+        ...types.map((t: ExpertType) => createElement('button', {
           key: t.key,
-          style: {
-            padding: '10px', borderRadius: '8px', cursor: 'pointer',
-            border: t.key === selected ? '1px solid #6c5ce7' : '1px solid rgba(255,255,255,0.06)',
-            background: t.key === selected ? 'rgba(108,92,231,0.15)' : 'var(--ag-surface-2, rgba(255,255,255,0.55))',
-          },
+          className: `pe-type${t.key === selected ? ' active' : ''}`,
           onClick: () => { setSelected(t.key); setParams({}); setResult(''); setError('') },
         },
-          createElement('div', { style: { fontSize: '20px', marginBottom: '4px' } }, t.icon),
-          createElement('div', { style: { fontSize: '12px', fontWeight: 600 } }, t.name),
-        )
-      )
-    ) : null,
+          createElement('span', { className: 'pe-type-icon' }, t.icon),
+          createElement('span', null, t.name),
+        )),
+      ),
+      types.length === 0 ? createElement('div', { className: 'agnes-empty' }, '正在读取专家列表…') : null,
 
-    // Form
-    currentType ? createElement('div', null,
-      createElement('div', { style: { marginBottom: '8px' } },
-        createElement('label', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', display: 'block', marginBottom: '4px' } }, '文本模型'),
-        createElement('select', {
-          style: { width: '100%', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: 'var(--ag-text, #0c1a33)', fontSize: '12px' },
-          value: model,
-          onChange: (e: Event) => setModel((e.target as HTMLSelectElement).value),
-        },
-          ...Object.entries(textModels).map(([id, name]) => createElement('option', { key: id, value: id }, name))
-        ),
-      ),
-      ...currentType.fields.map((f: any) =>
-        createElement('div', { key: f.key, style: { marginBottom: '8px' } },
-          createElement('label', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', display: 'block', marginBottom: '4px' } }, f.label),
+      currentType !== null && currentType !== undefined ? createElement('div', null,
+        createElement('label', { className: 'agnes-field' }, '文本模型',
           createElement('select', {
-            style: { width: '100%', height: '32px', padding: '0 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: 'var(--ag-text, #0c1a33)', fontSize: '12px' },
-            value: params[f.key] || f.default,
-            onChange: (e: Event) => setParams({ ...params, [f.key]: (e.target as HTMLSelectElement).value }),
+            value: model,
+            onChange: (e: Event) => setModel((e.target as HTMLSelectElement).value),
           },
-            ...f.options.map((o: string) => createElement('option', { key: o, value: o }, o))
+            ...Object.entries(textModels).map(([id, name]) => createElement('option', { key: id, value: id }, name)),
           ),
-        )
-      ),
-      createElement('div', { style: { marginBottom: '8px' } },
-        createElement('label', { style: { fontSize: '12px', color: 'var(--ag-text-2, #2a3c5e)', display: 'block', marginBottom: '4px' } }, '你的想法'),
-        createElement('textarea', {
-          style: { width: '100%', minHeight: '60px', padding: '8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', background: '#252538', color: 'var(--ag-text, #0c1a33)', fontSize: '12px', fontFamily: 'inherit', boxSizing: 'border-box' },
-          value: idea,
-          onChange: (e: Event) => setIdea((e.target as HTMLTextAreaElement).value),
-          placeholder: currentType.placeholder,
-          rows: 3,
-        }),
-      ),
-      createElement('button', {
-        className: 'agnes-btn agnes-btn-primary',
-        style: { width: '100%' },
-        disabled: loading || !idea.trim(),
-        onClick: handleGenerate,
-      }, loading ? '生成中...' : '生成提示词'),
-      loading ? createElement('div', {
-        style: { marginTop: '8px', fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)', textAlign: 'center' },
-      }, `正在调用 ${textModels[model] || model}…通常 5–20 秒`) : null,
-      error ? createElement('div', { style: { marginTop: '8px', padding: '6px', borderRadius: '6px', background: 'rgba(255,107,107,0.12)', color: '#ff6b6b', fontSize: '11px' } }, error) : null,
-      result ? createElement('div', {
-        style: { marginTop: '12px', padding: '12px', borderRadius: '8px', background: '#252538', border: '1px solid rgba(255,255,255,0.06)', whiteSpace: 'pre-wrap', fontSize: '12px', lineHeight: 1.6, maxHeight: '300px', overflowY: 'auto' },
-      },
-        result,
-        createElement('button', { className: 'agnes-btn agnes-btn-sm agnes-btn-secondary', style: { marginTop: '8px' }, onClick: () => handleCopy(result) }, '复制'),
-        // 打通到生图页：原先这里只有「复制」，用户得自己切页签再粘一遍。
-        // 只在拿到英文提示词时更实用，但中文也能直接用，所以不做内容判断。
-        onUseForImage ? createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
-          style: { marginTop: '8px', marginLeft: '6px' },
-          title: '把这段提示词填到「生图」页并切过去',
-          onClick: () => onUseForImage(result),
-        }, '去生图') : null,
-        onUseForVideo ? createElement('button', {
-          className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
-          style: { marginTop: '8px', marginLeft: '6px' },
-          title: '把这段提示词填到「生视频」页并切过去',
-          onClick: () => onUseForVideo(result),
-        }, '去生视频') : null,
-      ) : null,
+        ),
+        ...currentType.fields.map((f: any) =>
+          createElement('label', { key: f.key, className: 'agnes-field' }, f.label,
+            createElement('select', {
+              value: params[f.key] || f.default,
+              onChange: (e: Event) => setParams({ ...params, [f.key]: (e.target as HTMLSelectElement).value }),
+            },
+              ...f.options.map((o: string) => createElement('option', { key: o, value: o }, o)),
+            ),
+          ),
+        ),
+        createElement('label', { className: 'agnes-field' }, '你的想法',
+          createElement('textarea', {
+            value: idea,
+            onChange: (e: Event) => setIdea((e.target as HTMLTextAreaElement).value),
+            placeholder: currentType.placeholder,
+            rows: 4,
+          }),
+        ),
+        createElement('button', {
+          className: 'agnes-btn agnes-btn-primary',
+          disabled: loading || !idea.trim(),
+          onClick: handleGenerate,
+        }, loading ? '生成中…' : '生成提示词'),
+        loading ? createElement('div', { style: { fontSize: '11px', color: 'rgba(180,194,220,0.7)', textAlign: 'center' } },
+          `正在调用 ${textModels[model] || model}…通常 5–20 秒`) : null,
+      ) : createElement('div', { className: 'agnes-empty' }, '先选一个专家类型'),
+    ],
+    children: [
+      result !== '' ? createElement('div', { className: 'pe-result' },
+        createElement('div', { className: 'pe-result-text' }, result),
+        createElement('div', { className: 'pe-result-actions' },
+          createElement('button', { className: 'agnes-btn agnes-btn-sm agnes-btn-secondary', onClick: () => handleCopy(result) }, '复制'),
+          onUseForImage !== undefined ? createElement('button', {
+            className: 'agnes-btn agnes-btn-sm agnes-btn-primary',
+            title: '把这段提示词填到「生图」页并切过去',
+            onClick: () => onUseForImage(result),
+          }, '去生图') : null,
+          onUseForVideo !== undefined ? createElement('button', {
+            className: 'agnes-btn agnes-btn-sm agnes-btn-secondary',
+            title: '把这段提示词填到「生视频」页并切过去',
+            onClick: () => onUseForVideo(result),
+          }, '去生视频') : null,
+        ),
+      ) : createElement('div', { className: 'agnes-empty' },
+        '生成的提示词会显示在这里。历史上最多保留 20 条，点一下即可载回。'),
 
       // 生成历史：原先只写进 localStorage（20 条）却没有任何界面入口 ——
       // 存了、但用户永远看不到。这里补上，点击即载入那一条。
-      history.length > 0 ? createElement('div', { style: { marginTop: '16px' } },
-        createElement('div', {
-          style: { fontSize: '12px', fontWeight: 600, color: 'var(--ag-text-2, #2a3c5e)', marginBottom: '6px' },
-        }, `历史（${history.length}）`),
+      history.length > 0 ? createElement('div', { className: 'pe-history' },
+        createElement('div', { className: 'pe-history-title' }, `历史（${history.length}）`),
         ...history.map((h, i) =>
           createElement('div', {
             key: `${h.time}-${i}`,
+            className: 'pe-history-item',
             title: '点击载入这一条',
-            style: {
-              padding: '8px', marginBottom: '6px', borderRadius: '6px', cursor: 'pointer',
-              background: 'var(--ag-surface-2, rgba(255,255,255,0.55))',
-              border: '1px solid rgba(255,255,255,0.06)',
-            },
             onClick: () => { setSelected(h.type); setIdea(h.idea); setResult(h.result); setError('') },
           },
-            createElement('div', { style: { fontSize: '11px', color: 'var(--ag-text-3, #6e80a3)' } },
+            createElement('div', { className: 'pe-history-meta' },
               `${types.find((t: ExpertType) => t.key === h.type)?.name || h.type} · ${new Date(h.time).toLocaleString()}`),
-            createElement('div', {
-              style: { fontSize: '11px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-            }, h.idea),
+            createElement('div', { className: 'pe-history-idea' }, h.idea),
           ),
         ),
       ) : null,
-    ) : createElement('div', { style: { padding: '40px', textAlign: 'center', color: 'var(--ag-text-3, #6e80a3)' } }, '选择一个专家开始'),
-  )
+    ],
+  })
 }

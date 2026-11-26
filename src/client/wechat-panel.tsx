@@ -209,7 +209,7 @@ function WechatArticlePanel() {
 
     // 输入区域
     createElement('div', { className: 'wechat-section' },
-      createElement('h4', null, '① 生成文章'),
+      createElement('h4', null, '生成文章'),
       createElement('div', { className: 'wechat-form' },
         createElement('label', { className: 'wechat-label' },
           '标题',
@@ -315,7 +315,7 @@ function LocalfilesPanel() {
 
     // 上传区域
     createElement('div', { className: 'localfiles-section' },
-      createElement('h4', null, '① 上传文件'),
+      createElement('h4', null, '上传文件'),
       createElement('div', { className: 'localfiles-form' },
         createElement('label', { className: 'localfiles-label' },
           '选择文件',
@@ -326,7 +326,7 @@ function LocalfilesPanel() {
 
     // 文件列表
     createElement('div', { className: 'localfiles-section' },
-      createElement('h4', null, '② 文件列表'),
+      createElement('h4', null, '文件列表'),
       files.length === 0
         ? createElement('p', { className: 'localfiles-empty' }, '暂无文件')
         : createElement('div', { className: 'localfiles-list' },

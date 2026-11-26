@@ -281,3 +281,104 @@ export const coverOrderStyles = `
   [data-dsh-agnes-studio] .agnes-cover-grid > .agcv-preview { order: 2; }
 }
 `
+
+/** 提示词专家：专家类型选择的紧凑网格 + 结果块。 */
+export const expertStyles = `
+[data-dsh-agnes-studio] .pe-types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+[data-dsh-agnes-studio] .pe-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(226, 231, 245, 0.82);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+[data-dsh-agnes-studio] .pe-type:hover { background: rgba(255, 255, 255, 0.08); }
+[data-dsh-agnes-studio] .pe-type.active {
+  border-color: rgba(124, 148, 255, 0.6);
+  background: rgba(108, 132, 255, 0.18);
+  color: #eef2ff;
+}
+[data-dsh-agnes-studio] .pe-type-icon { font-size: 14px; line-height: 1; }
+[data-dsh-agnes-studio] .pe-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+[data-dsh-agnes-studio] .pe-result-text {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  max-height: 52vh;
+  overflow: auto;
+}
+[data-dsh-agnes-studio] .pe-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+[data-dsh-agnes-studio] .pe-history { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+[data-dsh-agnes-studio] .pe-history-title { font-size: 12px; font-weight: 600; color: rgba(214, 224, 244, 0.8); }
+[data-dsh-agnes-studio] .pe-history-item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+[data-dsh-agnes-studio] .pe-history-item:hover { background: rgba(255, 255, 255, 0.08); }
+[data-dsh-agnes-studio] .pe-history-meta { font-size: 11px; color: rgba(180, 194, 220, 0.6); }
+[data-dsh-agnes-studio] .pe-history-idea {
+  font-size: 11.5px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(226, 231, 245, 0.86);
+}
+`
+
+/** 文件选择框：原生「选择文件」按钮在深色里像补丁，统一成胶囊样式。 */
+export const fileInputStyles = `
+[data-dsh-agnes-studio] .agnes-split input[type="file"] {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 11.5px;
+  color: rgba(214, 224, 244, 0.75);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+[data-dsh-agnes-studio] .agnes-split input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 5px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(140, 170, 255, 0.35);
+  background: linear-gradient(180deg, rgba(120, 150, 255, 0.28), rgba(96, 128, 240, 0.18));
+  color: #eaf0ff;
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+[data-dsh-agnes-studio] .agnes-split input[type="file"]::file-selector-button:hover {
+  background: linear-gradient(180deg, rgba(140, 170, 255, 0.4), rgba(110, 140, 250, 0.26));
+}
+html[data-dsh-theme="light"] .agnes-split input[type="file"] {
+  background: #fff;
+  border-color: rgba(16, 24, 40, 0.16);
+  color: #344054;
+}
+`

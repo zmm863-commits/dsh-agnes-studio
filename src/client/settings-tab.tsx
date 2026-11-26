@@ -282,7 +282,7 @@ export function AddModelModal(props: AddModelModalProps): unknown {
         ),
       ),
       createElement('div', { className: 'agnes-form-group' },
-        createElement('label', { className: 'agnes-form-label' }, 'API Base URL'),
+        createElement('label', { className: 'agnes-form-label' }, '接口地址（Base URL）'),
         createElement('input', {
           className: 'agnes-form-input',
           value: draft.base_url,
