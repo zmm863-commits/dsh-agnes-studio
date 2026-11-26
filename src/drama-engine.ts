@@ -454,8 +454,22 @@ export async function handleDramaRoute(method: string, urlPath: string, body: an
   if (method === 'POST' && parts[1] === 'resume') { if (!runningDramas.has(id) && task.status !== 'failed' && task.status !== 'completed') { runningDramas.add(id); resolveApiKey(getVendor(task.text_model)).then(k => runPipeline(task, k)) } return { status: 200, data: { ok: true } } }
   if (method === 'POST' && parts[1] === 'confirm') {
     const { field, content, action, shot_index } = body
-    if (field === 'story' && content) updateTask(task, { edited_story: content, story: content })
-    else if (field === 'script' && content) updateTask(task, { edited_script: content, script: content })
+    // 注意：waitConfirm 等的是「状态变了」，所以确认时**必须**改状态。
+    // 之前 story/script 只更新文本不改状态，流水线会永远停在 paused_story/paused_script
+    // —— 界面上点了确认也毫无反应。
+    if (field === 'story') {
+      updateTask(task, {
+        ...(content ? { edited_story: content, story: content } : {}),
+        status: 'step2',
+        message: '故事已确认，正在生成剧本...',
+      })
+    } else if (field === 'script') {
+      updateTask(task, {
+        ...(content ? { edited_script: content, script: content } : {}),
+        status: 'step3',
+        message: '剧本已确认，正在生成分镜...',
+      })
+    }
     else if (field === 'assets' && action === 'approve') {
       // User approved assets → advance pipeline past paused_assets
       // The pipeline's waitConfirm detects status change from 'paused_assets'
