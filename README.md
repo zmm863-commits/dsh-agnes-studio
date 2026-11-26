@@ -2,7 +2,7 @@
 
 > **v1.0.0 重构版** · 15 个页面统一为「左展示 / 右参数」两列骨架，统一深色皮肤与表单控件，
 > 此前的空壳功能（背景视频 / MTV / 公众号 / 小说工具 / 工具箱 TTS / 视频反推）全部换成真实实现。
-> 📖 完整发布说明（每项都带截图或成片）：[docs/release/v1.0.0/README.md](docs/release/v1.0.0/README.md)
+> 📖 完整发布说明（每项都带截图或成片）：[完整发布说明](https://gitee.com/paopaocat/dsh-agnes-studio/blob/main/docs/release/v1.0.0/README.md)
 
 ## 兼容性
 
