@@ -68,11 +68,6 @@ jobs:
             console.log('✅ 发布物自检通过: '+need.join(', '));
           "
 
-      - name: Publish (trusted publishing / OIDC)
-        run: npm publish --provenance --access public
-        env:
-          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
-
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,6 +75,29 @@ jobs:
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
             && echo "release $GITHUB_REF_NAME already exists" \
             || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+
+      - name: Skip publish when the version already exists
+        id: exists
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          VER=$(node -p "require('./package.json').version")
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$PKG/$VER?cb=$RANDOM")
+          echo "registry $PKG@$VER -> HTTP $code"
+          if [ "$code" = "200" ]; then
+            echo "已经发布过，跳过 npm publish（重推同一个 tag 时不该再报红）"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish (trusted publishing / OIDC)
+        if: steps.exists.outputs.skip != 'true'
+        run: npm publish --provenance --access public
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+
 
       - name: Verify on registry (long window, warn-only on timeout)
         run: |

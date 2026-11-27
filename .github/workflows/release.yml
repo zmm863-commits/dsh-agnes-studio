@@ -1,0 +1,81 @@
+# 打 tag 就建 GitHub Release（用仓库自带的 GITHUB_TOKEN，不需要任何 PAT）
+#
+# 为什么要单独一个工作流：
+#   原来的 publish.yml 把「Create GitHub Release」排在「npm publish」**之后**，
+#   一旦 npm 那步失败（版本已存在 / 未登记 Trusted Publisher），Release 就被 skipped——
+#   于是 tag 有了、Releases 页却还是旧版本。这里把建 Release 独立出来，与 npm 解耦。
+#
+# 正文来源：CHANGELOG.md 里对应版本的小节；找不到就退回自动生成的提交小结。
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要补建 Release 的 tag（例如 v1.0.1）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract notes from CHANGELOG
+        id: notes
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          VER="${TAG#v}"
+          node -e '
+            const fs = require("fs");
+            const tag = process.env.TAG, ver = process.env.VER;
+            let notes = "";
+            try {
+              const md = fs.readFileSync("CHANGELOG.md", "utf8");
+              const lines = md.split("\n");
+              const start = lines.findIndex(l => l.startsWith("## " + tag) || l.startsWith("## v" + ver));
+              if (start >= 0) {
+                const out = [];
+                for (let i = start + 1; i < lines.length; i++) {
+                  if (/^## /.test(lines[i])) break;
+                  out.push(lines[i]);
+                }
+                notes = out.join("\n").trim();
+              }
+            } catch {}
+            if (!notes) notes = "见 CHANGELOG.md。";
+            fs.writeFileSync("/tmp/notes.md", notes + "\n");
+            console.log("notes 长度:", notes.length);
+          '
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+          VER: ${{ steps.tag.outputs.name }}
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.tag.outputs.name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists — 更新正文"
+            gh release edit "$TAG" --notes-file /tmp/notes.md
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file /tmp/notes.md
+          fi
